@@ -1,0 +1,85 @@
+From 2c9cd8afedb3b8992a106f1fb05ea08240eafb32 Mon Sep 17 00:00:00 2001
+From: Hiroshi Miura <miurahr@linux.com>
+Date: Mon, 19 Feb 2018 08:57:52 +0900
+Subject: [PATCH 4/6] [cmake] Generate project-config.cmake
+
+Generate project-config.cmake and project-depends.cmake
+to support other cmake project to use this library.
+
+Signed-off-by: Hiroshi Miura <miurahr@linux.com>
+---
+ CMakeLists.txt                | 16 +++++++++++++++-
+ cmake/project-config.cmake.in | 22 ++++++++++++++++++++++
+ src/CMakeLists.txt            |  2 +-
+ 3 files changed, 38 insertions(+), 2 deletions(-)
+ create mode 100644 cmake/project-config.cmake.in
+
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index c4f730f..a3c039a 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -66,4 +66,18 @@ add_subdirectory(test)
+ endif()
+ 
+ # build tools
+-add_subdirectory(tools)
+\ No newline at end of file
++add_subdirectory(tools)
++
++include(CMakePackageConfigHelpers)
++if (NOT WIN32)
++    set (INSTALL_CMAKE_DIR "share/cmake/${PROJECT_NAME}")
++else ()
++    set (INSTALL_CMAKE_DIR "share/${PROJECT_NAME}")
++endif ()
++configure_package_config_file(cmake/project-config.cmake.in ${PROJECT_NAME}-config.cmake
++        INSTALL_DESTINATION ${INSTALL_CMAKE_DIR})
++write_basic_package_version_file(${PROJECT_NAME}-config-version.cmake
++        VERSION ${PROJECT_VERSION} COMPATIBILITY SameMajorVersion)
++install(FILES ${PROJECT_NAME}-config.cmake ${PROJECT_NAME}-config-version.cmake DESTINATION "${INSTALL_CMAKE_DIR}")
++install(EXPORT ${PROJECT_NAME}-depends FILE ${PROJECT_NAME}-depends.cmake
++        DESTINATION "${INSTALL_CMAKE_DIR}")
+diff --git a/cmake/project-config.cmake.in b/cmake/project-config.cmake.in
+new file mode 100644
+index 0000000..91e69f4
+--- /dev/null
++++ b/cmake/project-config.cmake.in
+@@ -0,0 +1,22 @@
++# Configure @PROJECT_NAME@
++#
++# Set such as
++#  @PROJECT_NAME_UPPER@_FOUND = 1
++#  @PROJECT_NAME_UPPER@_INCLUDE_DIRS = /usr/local/include
++#  @PROJECT_NAME_UPPER@_LIBRARIES = @PROJECT_NAME@_library
++#  @PROJECT_NAME_UPPER@_LIBRARY_DIRS = /usr/local/lib
++#  @PROJECT_NAME_UPPER@_BINARY_DIRS = /usr/local/bin
++#  @PROJECT_NAME_UPPER@_VERSION = 1.4.1 (for example)
++
++message (STATUS "Reading ${CMAKE_CURRENT_LIST_FILE}")
++get_filename_component (_DIR ${CMAKE_CURRENT_LIST_FILE} PATH)
++get_filename_component (_ROOT "${_DIR}/@PROJECT_ROOT_DIR@" ABSOLUTE)
++set (@PROJECT_NAME_UPPER@_FOUND 1)
++set (@PROJECT_NAME_UPPER@_INCLUDE_DIRS "${_ROOT}/include")
++set (@PROJECT_NAME_UPPER@_LIBRARY_DIRS "${_ROOT}/lib")
++set (@PROJECT_NAME_UPPER@_BINARY_DIRS "${_ROOT}/bin")
++set (@PROJECT_NAME_UPPER@_LIBRARIES @TARGET_LIB_NAME@)
++# Read in the exported definition of the library
++include ("${_DIR}/@PROJECT_NAME_LOWER@-depends.cmake")
++unset (_ROOT)
++unset (_DIR)
+diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
+index 4656e5d..0e18c04 100644
+--- a/src/CMakeLists.txt
++++ b/src/CMakeLists.txt
+@@ -83,7 +83,7 @@ add_definitions("-DM_PI=3.14159265358979323846")
+ endif()
+ 
+ install(TARGETS ${TARGET_NAME}
+-            EXPORT ${TARGET_NAME}-depends
++            EXPORT ${PROJECT_NAME}-depends
+             RUNTIME DESTINATION bin
+             LIBRARY DESTINATION lib
+             ARCHIVE DESTINATION lib)
+-- 
+2.16.1
+

@@ -1,0 +1,1148 @@
+From ecbf7298824e1cdfc30fdb48f558950778c3e6f5 Mon Sep 17 00:00:00 2001
+From: Hiroshi Miura <miurahr@linux.com>
+Date: Sat, 17 Feb 2018 11:34:57 +0900
+Subject: [PATCH 1/6] [cmake] Add CMake build scripts
+
+Signed-off-by: Hiroshi Miura <miurahr@linux.com>
+---
+ CMakeLists.txt             |  57 +++++++++++++
+ cmake/FindCharLS.cmake     |  38 +++++++++
+ cmake/FindGEOS.cmake       |  71 ++++++++++++++++
+ cmake/FindGeoTIFF.cmake    |  62 ++++++++++++++
+ cmake/FindIconv.cmake      | 204 +++++++++++++++++++++++++++++++++++++++++++++
+ cmake/FindOpenJPEG2.cmake  |  95 +++++++++++++++++++++
+ cmake/FindPROJ4.cmake      |  77 +++++++++++++++++
+ cmake/FindPixman.cmake     |  43 ++++++++++
+ cmake/FindSPATIALITE.cmake |  72 ++++++++++++++++
+ cmake/FindSQLite3.cmake    |  75 +++++++++++++++++
+ cmake/FindTIFF.cmake       | 105 +++++++++++++++++++++++
+ cmake/FindWEBP.cmake       |  40 +++++++++
+ src/CMakeLists.txt         |  91 ++++++++++++++++++++
+ 13 files changed, 1030 insertions(+)
+ create mode 100644 CMakeLists.txt
+ create mode 100644 cmake/FindCharLS.cmake
+ create mode 100644 cmake/FindGEOS.cmake
+ create mode 100644 cmake/FindGeoTIFF.cmake
+ create mode 100644 cmake/FindIconv.cmake
+ create mode 100644 cmake/FindOpenJPEG2.cmake
+ create mode 100644 cmake/FindPROJ4.cmake
+ create mode 100644 cmake/FindPixman.cmake
+ create mode 100644 cmake/FindSPATIALITE.cmake
+ create mode 100644 cmake/FindSQLite3.cmake
+ create mode 100644 cmake/FindTIFF.cmake
+ create mode 100644 cmake/FindWEBP.cmake
+ create mode 100644 src/CMakeLists.txt
+
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+new file mode 100644
+index 0000000..12ba5f6
+--- /dev/null
++++ b/CMakeLists.txt
+@@ -0,0 +1,57 @@
++cmake_minimum_required(VERSION 3.5)
++project(librasterlite2
++        VERSION 1.0.0.0
++        LANGUAGES C)
++set(CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
++set(TARGET_NAME rasterlite2-target)
++set(LIB_NAME    rasterlite2)
++
++option(BUILD_SHARED_LIBS "Build shared library." ON)
++if(MSVC)
++    if(BUILD_SHARED_LIBS)
++        set(CL_FLAGS_DBG "/MDd /Zi")
++        set(CL_FLAGS_REL "/MD /Ox")
++    else()
++        set(CL_FLAGS_DBG "/MTd /Zi")
++        set(CL_FLAGS_REL "/MT /Ox")
++    endif()
++    set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS} /nologo ${CL_FLAGS_REL}")
++    set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} /nologo ${CL_FLAGS_DBG}")
++endif(MSVC)
++
++set(HEADER_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/headers)
++
++# macro
++include(FindPackageHandleStandardArgs)
++macro(local_find_package pkgname include_file library_file)
++  find_path(${pkgname}_INCLUDE_DIR ${include_file})
++  find_library(${pkgname}_LIBRARY ${library_file})
++  find_package_handle_standard_args(${pkgname}
++      REQUIRED_VARS ${pkgname}_INCLUDE_DIR ${pkgname}_LIBRARY)
++endmacro()
++
++#Find dependencies
++local_find_package(CAIRO "cairo/cairo.h" "cairo")
++find_package(CharLS REQUIRED)
++find_package(CURL REQUIRED)
++local_find_package(FREEXL "freexl.h" "freexl")
++find_package(GEOS REQUIRED)
++find_package(GeoTIFF REQUIRED)
++local_find_package(GIFLIB "gif_lib.h" "gif")
++find_package(Iconv)
++find_package(JPEG REQUIRED)
++find_package(LibXml2 REQUIRED)
++local_find_package(LZMA "lzma/version.h" "lzma")
++find_package(OpenJPEG2)
++find_package(Pixman REQUIRED)
++find_package(PNG REQUIRED)
++find_package(PROJ4 REQUIRED)
++find_package(SPATIALITE REQUIRED)
++find_package(SQLite3 REQUIRED)
++find_package(TIFF REQUIRED)
++find_package(WEBP REQUIRED)
++find_package(ZLIB REQUIRED)
++find_package(Threads)
++
++# build library
++add_subdirectory(src)
+diff --git a/cmake/FindCharLS.cmake b/cmake/FindCharLS.cmake
+new file mode 100644
+index 0000000..cc63579
+--- /dev/null
++++ b/cmake/FindCharLS.cmake
+@@ -0,0 +1,38 @@
++#.rst:
++# FindCharLS - JPEG Loss-Less Open SOurce Library CharLS
++# --------
++#
++# Find CharLS
++#
++# ::
++#
++#   CHARLS_INCLUDE_DIR, where to find charls.h, etc.
++#   CHARLS_LIBRARIES, the libraries needed to use CharLS.
++#   CHARLS_FOUND, If false, do not try to use CharLS.
++#   CHARLS_VERION, 1 if CharLS/interface.h exist and 2 if CharLS/charls.h exist
++#
++
++find_path(CHARLS_INCLUDE_DIR NAMES charls.h SUFFIX_PATHS CharLS)
++find_path(CHARLS_INCLUDE_DIR NAMES interface.h SUFFIX_PATHS CharLS)
++
++if(CHARLS_INCLUDE_DIR)
++    if(EXISTS "${CHARLS_INCLUDE_DIR}/CharLS/interface.h")
++        set(CHARLS_VERSION 1)
++    else()
++        set(CHARLS_VERSION 2)
++    endif()
++endif()
++
++find_library(CHARLS_LIBRARY NAMES CharLS)
++
++include(FindPackageHandleStandardArgs)
++FIND_PACKAGE_HANDLE_STANDARD_ARGS(CHARLS
++                                  FOUND_VAR CHARLS_FOUND
++                                  REQUIRED_VARS CHARLS_LIBRARY CHARLS_INCLUDE_DIR
++                                  VERSION_VAR CHARLS_VERSION)
++mark_as_advanced(CHARLS_LIBRARY CHARLS_INCLUDE_DIR CHARLS_VERSION)
++
++if(CHARLS_FOUND)
++    set(CHARLS_LIBRARIES ${CHARLS_LIBRARY})
++    set(CHARLS_INCLUDE_DIRS ${CHARLS_INCLUDE_DIRS})
++endif()
+\ No newline at end of file
+diff --git a/cmake/FindGEOS.cmake b/cmake/FindGEOS.cmake
+new file mode 100644
+index 0000000..81b1093
+--- /dev/null
++++ b/cmake/FindGEOS.cmake
+@@ -0,0 +1,71 @@
++# Find GEOS
++# ~~~~~~~~~
++# Copyright (C) 2017, Hiroshi Miura
++# Copyright (c) 2008, Mateusz Loskot <mateusz@loskot.net>
++# (based on FindGDAL.cmake by Magnus Homann)
++# Redistribution and use is allowed according to the terms of the BSD license.
++# For details see the accompanying COPYING-CMAKE-SCRIPTS file.
++#
++# CMake module to search for GEOS library
++#
++# If it's found it sets GEOS_FOUND to TRUE
++# and following variables are set:
++#    GEOS_INCLUDE_DIR
++#    GEOS_LIBRARY
++#
++
++# try to use framework on mac
++# want clean framework path, not unix compatibility path
++IF (APPLE)
++    IF (CMAKE_FIND_FRAMEWORK MATCHES "FIRST"
++        OR CMAKE_FRAMEWORK_PATH MATCHES "ONLY"
++        OR NOT CMAKE_FIND_FRAMEWORK)
++        SET (CMAKE_FIND_FRAMEWORK_save ${CMAKE_FIND_FRAMEWORK} CACHE STRING "" FORCE)
++        SET (CMAKE_FIND_FRAMEWORK "ONLY" CACHE STRING "" FORCE)
++        FIND_LIBRARY(GEOS_LIBRARY GEOS)
++        IF (GEOS_LIBRARY)
++            # they're all the same in a framework
++            SET (GEOS_INCLUDE_DIR ${GEOS_LIBRARY}/Headers CACHE PATH "Path to a file.")
++            # set GEOS_CONFIG to make later test happy, not used here, may not exist
++            SET (GEOS_CONFIG ${GEOS_LIBRARY}/unix/bin/geos-config CACHE FILEPATH "Path to a program.")
++            # version in info.plist
++            GET_VERSION_PLIST (${GEOS_LIBRARY}/Resources/Info.plist GEOS_VERSION)
++            IF (NOT GEOS_VERSION)
++                MESSAGE (FATAL_ERROR "Could not determine GEOS version from framework.")
++            ENDIF (NOT GEOS_VERSION)
++            STRING(REGEX REPLACE "([0-9]+)\\.([0-9]+)\\.([0-9]+)" "\\1" GEOS_VERSION_MAJOR "${GEOS_VERSION}")
++            STRING(REGEX REPLACE "([0-9]+)\\.([0-9]+)\\.([0-9]+)" "\\2" GEOS_VERSION_MINOR "${GEOS_VERSION}")
++            IF (GEOS_VERSION_MAJOR LESS 3)
++                MESSAGE (FATAL_ERROR "GEOS version is too old (${GEOS_VERSION}). Use 3.0.0 or higher.")
++            ENDIF (GEOS_VERSION_MAJOR LESS 3)
++        ENDIF (GEOS_LIBRARY)
++        SET (CMAKE_FIND_FRAMEWORK ${CMAKE_FIND_FRAMEWORK_save} CACHE STRING "" FORCE)
++    ENDIF ()
++ENDIF (APPLE)
++
++find_program(GEOS_CONFIG geos-config)
++if(GEOS_CONFIG)
++    EXEC_PROGRAM(${GEOS_CONFIG}
++                 ARGS --version
++                 OUTPUT_VARIABLE GEOS_VERSION)
++    EXEC_PROGRAM(${GEOS_CONFIG}
++                 ARGS --prefix
++                 OUTPUT_VARIABLE GEOS_PREFIX)
++endif()
++
++FIND_PATH(GEOS_INCLUDE_DIR
++          NAMES geos_c.h
++          HINSTS ${GEOS_PREFIX}/include)
++FIND_LIBRARY(GEOS_LIBRARY
++             NAMES geos_c
++             HINTS ${GEOS_PREFIX}/lib)
++
++mark_as_advanced(GEOS_INCLUDE_DIR GEOS_LIBRARY)
++
++include(FindPackageHandleStandardArgs)
++FIND_PACKAGE_HANDLE_STANDARD_ARGS(GEOS FOUND_VAR GEOS_FOUND REQUIRED_VARS GEOS_INCLUDE_DIR GEOS_LIBRARY)
++
++if(GEOS_FOUND)
++    set(GEOS_LIBRARIES ${GEOS_LIBRARY})
++    set(GEOS_INCLUDE_DIRS ${GEOS_INCLUDE_DIR})
++endif()
+\ No newline at end of file
+diff --git a/cmake/FindGeoTIFF.cmake b/cmake/FindGeoTIFF.cmake
+new file mode 100644
+index 0000000..3b0976d
+--- /dev/null
++++ b/cmake/FindGeoTIFF.cmake
+@@ -0,0 +1,62 @@
++###############################################################################
++#
++# CMake module to search for GeoTIFF library
++#
++# On success, the macro sets the following variables:
++# GEOTIFF_FOUND       = if the library found
++# GEOTIFF_LIBRARIES   = full path to the library
++# GEOTIFF_INCLUDE_DIR = where to find the library headers
++# also defined, but not for general use are
++# GEOTIFF_LIBRARY
++#
++# Copyright (c) 2009 Mateusz Loskot <mateusz@loskot.net>
++# Copyright (c) 2016 NextGIS <info@nextgis.com>
++# Copyright (C) 2017 Hiroshi Miura
++#
++# Origin from
++# https://svn.osgeo.org/metacrs/geotiff/trunk/libgeotiff/cmake/FindGeoTIFF.cmake
++# Module source: http://github.com/mloskot/workshop/tree/master/cmake/
++#
++# Redistribution and use is allowed according to the terms of the BSD license.
++# For details see the accompanying COPYING-CMAKE-SCRIPTS file.
++#
++###############################################################################
++
++FIND_PATH(GEOTIFF_INCLUDE_DIR geotiff.h PATH_SUFFIXES geotiff)
++FIND_LIBRARY(GEOTIFF_LIBRARY geotiff geotiff_i)
++
++if(GEOTIFF_INCLUDE_DIR)
++    set(GEOTIFF_MAJOR_VERSION 0)
++    set(GEOTIFF_MINOR_VERSION 0)
++    set(GEOTIFF_PATCH_VERSION 0)
++    set(GEOTIFF_REVISION_VERSION 0)
++
++    if(EXISTS "${GEOTIFF_INCLUDE_DIR}/geotiff.h")
++        file(READ "${GEOTIFF_INCLUDE_DIR}/geotiff.h" GEOTIFF_H_CONTENTS)
++    string(REGEX MATCH "LIBGEOTIFF_VERSION[ \t]+([0-9]+)"
++      LIBGEOTIFF_VERSION ${GEOTIFF_H_CONTENTS})
++    string (REGEX MATCH "([0-9]+)"
++      LIBGEOTIFF_VERSION ${LIBGEOTIFF_VERSION})
++
++    string(SUBSTRING ${LIBGEOTIFF_VERSION} 0 1 GEOTIFF_MAJOR_VERSION)
++    string(SUBSTRING ${LIBGEOTIFF_VERSION} 1 1 GEOTIFF_MINOR_VERSION)
++    string(SUBSTRING ${LIBGEOTIFF_VERSION} 2 1 GEOTIFF_PATCH_VERSION)
++    string(SUBSTRING ${LIBGEOTIFF_VERSION} 3 1 GEOTIFF_REVISION_VERSION)
++
++    unset(GEOTIFF_H_CONTENTS)
++    endif()
++
++    set(GEOTIFF_VERSION_STRING "${GEOTIFF_MAJOR_VERSION}.${GEOTIFF_MINOR_VERSION}.${GEOTIFF_PATCH_VERSION}.${GEOTIFF_REVISION_VERSION}")
++
++endif()
++mark_as_advanced(GEOTIFF_LIBRARY GEOTIFF_INCLUDE_DIR)
++
++INCLUDE(FindPackageHandleStandardArgs)
++FIND_PACKAGE_HANDLE_STANDARD_ARGS(GEOTIFF REQUIRED_VARS GEOTIFF_LIBRARY GEOTIFF_INCLUDE_DIR
++                                          VERSION_VAR GEOTIFF_VERSION_STRING)
++
++IF(GEOTIFF_FOUND)
++  SET(GEOTIFF_INCLUDE_DIRS ${GEOTIFF_INCLUDE_DIR})
++  SET(GEOTIFF_LIBRARIES ${GEOTIFF_LIBRARY})
++ENDIF()
++
+diff --git a/cmake/FindIconv.cmake b/cmake/FindIconv.cmake
+new file mode 100644
+index 0000000..129a0c7
+--- /dev/null
++++ b/cmake/FindIconv.cmake
+@@ -0,0 +1,204 @@
++# Distributed under the OSI-approved BSD 3-Clause License.  See accompanying
++# file Copyright.txt or https://cmake.org/licensing for details.
++
++#[=======================================================================[.rst:
++FindIconv
++---------
++
++This module finds the ``iconv()`` POSIX.1 functions on the system.
++These functions might be provided in the regular C library or externally
++in the form of an additional library.
++
++The following variables are provided to indicate iconv support:
++
++.. variable:: Iconv_FOUND
++
++  Variable indicating if the iconv support was found.
++
++.. variable:: Iconv_INCLUDE_DIRS
++
++  The directories containing the iconv headers.
++
++.. variable:: Iconv_LIBRARIES
++
++  The iconv libraries to be linked.
++
++.. variable:: Iconv_IS_BUILT_IN
++
++  A variable indicating whether iconv support is stemming from the
++  C library or not. Even if the C library provides `iconv()`, the presence of
++  an external `libiconv` implementation might lead to this being false.
++
++.. variable:: ICONV_CONST
++
++  A variable indicating whether iconv second argument is "const" or not.
++  If iconv second arugment type is "const char**" then ICONV_CONST is a string "const",
++  otherwise it is "".
++
++.. variable:: ICONV_SECOND_ARGUMENT_IS_CONST
++
++  A variable indicating same as Iconv_CONST but is boolean.
++  If iconv second argument type is "const char**", it is ON(TRUE),
++  otherwise OFF(FALSE).
++
++Additionally, the following :prop_tgt:`IMPORTED` target is being provided:
++
++.. variable:: Iconv::Iconv
++
++  Imported target for using iconv.
++
++The following cache variables may also be set:
++
++.. variable:: Iconv_INCLUDE_DIR
++
++  The directory containing the iconv headers.
++
++.. variable:: Iconv_LIBRARY
++
++  The iconv library (if not implicitly given in the C library).
++
++.. note::
++  On POSIX platforms, iconv might be part of the C library and the cache
++  variables ``Iconv_INCLUDE_DIR`` and ``Iconv_LIBRARY`` might be empty.
++
++#]=======================================================================]
++
++include(CMakePushCheckState)
++if(CMAKE_C_COMPILER_LOADED)
++  include(CheckCSourceCompiles)
++elseif(CMAKE_CXX_COMPILER_LOADED)
++  include(CheckCXXSourceCompiles)
++endif()
++if(NOT CMAKE_C_COMPILER_LOADED AND NOT CMAKE_CXX_COMPILER_LOADED)
++  # If neither C nor CXX are loaded, implicit iconv makes no sense.
++  set(Iconv_IS_BUILT_IN FALSE)
++endif()
++
++# iconv can only be provided in libc on a POSIX system.
++# If any cache variable is already set, we'll skip this test.
++if(NOT DEFINED Iconv_IS_BUILT_IN)
++  if(UNIX AND NOT DEFINED Iconv_INCLUDE_DIR AND NOT DEFINED Iconv_LIBRARY)
++    cmake_push_check_state(RESET)
++    # We always suppress the message here: Otherwise on supported systems
++    # not having iconv in their C library (e.g. those using libiconv)
++    # would always display a confusing "Looking for iconv - not found" message
++    set(CMAKE_FIND_QUIETLY TRUE)
++    # The following code will not work, but it's sufficient to see if it compiles.
++    # Note: libiconv will define the iconv functions as macros, so CheckSymbolExists
++    # will not yield correct results.
++    set(Iconv_IMPLICIT_TEST_CODE
++        "
++      #include <stddef.h>
++      #include <iconv.h>
++      int main() {
++        char *a, *b;
++        size_t i, j;
++        iconv_t ic;
++        ic = iconv_open(\"to\", \"from\");
++        iconv(ic, &a, &i, &b, &j);
++        iconv_close(ic);
++      }
++      "
++        )
++    if(CMAKE_C_COMPILER_LOADED)
++      check_c_source_compiles("${Iconv_IMPLICIT_TEST_CODE}" Iconv_IS_BUILT_IN)
++    else()
++      check_cxx_source_compiles("${Iconv_IMPLICIT_TEST_CODE}" Iconv_IS_BUILT_IN)
++    endif()
++    cmake_pop_check_state()
++  else()
++    set(Iconv_IS_BUILT_IN FALSE)
++  endif()
++endif()
++
++if(NOT Iconv_IS_BUILT_IN)
++  FIND_PATH(Iconv_INCLUDE_DIR iconv.h PATHS /opt/local/include NO_DEFAULT_PATH)
++  find_path(Iconv_INCLUDE_DIR
++            NAMES "iconv.h"
++            DOC "iconv include directory")
++  set(Iconv_LIBRARY_NAMES "iconv" "libiconv")
++  FIND_LIBRARY(iconv_lib NAMES iconv libiconv NO_DEFAULT_PATH PATHS /opt/local/lib)
++else()
++  set(Iconv_INCLUDE_DIR "" CACHE FILEPATH "iconv include directory")
++  set(Iconv_LIBRARY_NAMES "c")
++endif()
++
++find_library(Iconv_LIBRARY
++             NAMES ${Iconv_LIBRARY_NAMES}
++             DOC "iconv library (potentially the C library)")
++
++mark_as_advanced(Iconv_INCLUDE_DIR)
++mark_as_advanced(Iconv_LIBRARY)
++
++include(FindPackageHandleStandardArgs)
++if(NOT Iconv_IS_BUILT_IN)
++  find_package_handle_standard_args(Iconv REQUIRED_VARS Iconv_LIBRARY Iconv_INCLUDE_DIR)
++else()
++  find_package_handle_standard_args(Iconv REQUIRED_VARS Iconv_LIBRARY)
++endif()
++
++IF(Iconv_FOUND)
++  set (CMAKE_C_FLAGS_BACKUP "${CMAKE_C_FLAGS}")
++  set (CMAKE_CXX_FLAGS_BACKUP "${CMAKE_CXX_FLAGS}")
++  if(MSVC)
++      set(CMAKE_C_FLAGS "${CMKAE_C_FLAGS} /WX")
++      set(CMAKE_CXX_FLAGS "${CMKAE_CXX_FLAGS} /WX")
++  else()
++      include(CheckCCompilerFlag)
++      check_c_compiler_flag("-Werror" ICONV_HAVE_WERROR)
++      if(ICONV_HAVE_WERROR)
++          set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Werror")
++          set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Werror")
++      endif(ICONV_HAVE_WERROR)
++  endif()
++  set(CMAKE_REQUIRED_INCLUDES ${Iconv_INCLUDE_DIR})
++  set(CMAKE_REQUIRED_LIBRARIES ${Iconv_LIBRARY})
++  set(ICONV_CONST_TEST_CODE "#include <stdlib.h>
++    #include <iconv.h>
++    #ifdef __cplusplus
++    extern \"C\"
++    #endif
++
++    int main(){
++    #if defined(__STDC__) || defined(__cplusplus)
++      iconv_t conv = 0;
++      char* in = 0;
++      size_t ilen = 0;
++      char* out = 0;
++      size_t olen = 0;
++      size_t ret = iconv(conv, &in, &ilen, &out, &olen);
++    #else
++      size_t ret = iconv();
++    #endif
++      return 0;
++    }")
++  if(CMAKE_C_COMPILER_LOADED)
++    check_c_source_compiles("${ICONV_CONST_TEST_CODE}"
++                            _ICONV_SECOND_ARGUMENT_IS_NOT_CONST)
++  elseif(CMAKE_CXX_COMPILER_LOADED)
++    check_cxx_source_compiles("${ICONV_CONST_TEST_CODE}"
++                              _ICONV_SECOND_ARGUMENT_IS_NOT_CONST)
++  endif()
++  set(CMAKE_REQUIRED_INCLUDES)
++  set(CMAKE_REQUIRED_LIBRARIES)
++  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS_BACKUP}")
++  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS_BACKUP}")
++  if(_ICONV_SECOND_ARGUMENT_IS_NOT_CONST)
++    set(ICONV_CONST "")
++    set(ICONV_CPP_CONST "")
++    set(ICONV_SECOND_ARGUMENT_IS_CONST OFF)
++  else()
++    set(ICONV_CONST "const")
++    set(ICONV_CPP_CONST "const")
++    set(ICONV_SECOND_ARGUMENT_IS_CONST ON)
++  endif()
++  unset(_ICONV_SECOND_ARGUMENT_IS_NOT_CONST)
++
++  set(Iconv_INCLUDE_DIRS "${Iconv_INCLUDE_DIR}")
++  set(Iconv_LIBRARIES "${Iconv_LIBRARY}")
++  if(NOT TARGET Iconv::Iconv)
++    add_library(Iconv::Iconv INTERFACE IMPORTED)
++  endif()
++  set_property(TARGET Iconv::Iconv PROPERTY INTERFACE_INCLUDE_DIRECTORIES "${Iconv_INCLUDE_DIRS}")
++  set_property(TARGET Iconv::Iconv PROPERTY INTERFACE_LINK_LIBRARIES "${Iconv_LIBRARIES}")
++endif()
+diff --git a/cmake/FindOpenJPEG2.cmake b/cmake/FindOpenJPEG2.cmake
+new file mode 100644
+index 0000000..89f0cff
+--- /dev/null
++++ b/cmake/FindOpenJPEG2.cmake
+@@ -0,0 +1,95 @@
++# File found at: https://svn.osgeo.org/ossim/trunk/ossim_package_support/cmake/CMakeModules/FindOpenJPEG.cmake
++# Modified for NextGIS Borsch project.
++
++###
++# File:  FindOpenJPEG.cmake
++#
++# Original script was from:
++# http://code.google.com/p/emeraldviewer/source/browse/indra/cmake
++###
++
++function(TRANSFORM_VERSION _numerical_result _version_major _version_minor _version_patch)
++  set(factor 100)
++  if(_version_minor GREATER 99)
++      set(factor 1000)
++  endif()
++  if(_verion_patch GREATER 99)
++      set(factor 1000)
++  endif()
++  math(EXPR _internal_numerical_result
++          "${major}*${factor}*${factor} + ${minor}*${factor} + ${patch}"
++          )
++  set(${_numerical_result} ${_internal_numerical_result} PARENT_SCOPE)
++endfunction(TRANSFORM_VERSION)
++
++
++# - Find OpenJPEG
++# Find the OpenJPEG includes and library
++# This module defines
++#  OPENJPEG_INCLUDE_DIR, where to find openjpeg.h, etc.
++#  OPENJPEG_LIBRARIES, the libraries needed to use OpenJPEG.
++#  OPENJPEG_FOUND, If false, do not try to use OpenJPEG.
++# also defined, but not for general use are
++#  OPENJPEG_LIBRARY, where to find the OpenJPEG library.
++
++FIND_PATH(OPENJPEG_INCLUDE_DIR opj_config.h
++  PATHS
++    /usr/local/include
++    /usr/include
++  PATH_SUFFIXES
++    openjpeg-2.0
++    openjpeg-2.1
++    openjpeg-2.2
++    openjpeg-2.3
++  DOC "Location of OpenJPEG Headers"
++)
++
++SET(OPENJPEG_NAMES ${OPENJPEG_NAMES} openjp2)
++FIND_LIBRARY(OPENJPEG_LIBRARY
++  NAMES ${OPENJPEG_NAMES}
++  PATHS /usr/lib /usr/local/lib
++  )
++MARK_AS_ADVANCED(OPENJPEG_LIBRARY OPENJPEG_INCLUDE_DIR)
++
++if(OPENJPEG_INCLUDE_DIR)
++    set(MAJOR_VERSION 0)
++    set(MINOR_VERSION 0)
++    set(REV_VERSION 0)
++
++    if(EXISTS "${OPENJPEG_INCLUDE_DIR}/opj_config.h")
++        file(READ "${OPENJPEG_INCLUDE_DIR}/opj_config.h" VERSION_H_CONTENTS)
++        string(REGEX MATCH "OPJ_VERSION_MAJOR[ \t]+([0-9]+)"
++          MAJOR_VERSION ${VERSION_H_CONTENTS})
++        string (REGEX MATCH "([0-9]+)" MAJOR_VERSION ${MAJOR_VERSION})
++        string(REGEX MATCH "OPJ_VERSION_MINOR[ \t]+([0-9]+)"
++          MINOR_VERSION ${VERSION_H_CONTENTS})
++        string (REGEX MATCH "([0-9]+)"
++          MINOR_VERSION ${MINOR_VERSION})
++        string(REGEX MATCH "OPJ_VERSION_BUILD[ \t]+([0-9]+)"
++          REV_VERSION ${VERSION_H_CONTENTS})
++        string (REGEX MATCH "([0-9]+)"
++          REV_VERSION ${REV_VERSION})
++        unset(VERSION_H_CONTENTS)
++    endif()
++
++    set(factor 100)
++    set(OPENJPEG_VERSION_STRING "${MAJOR_VERSION}.${MINOR_VERSION}.${REV_VERSION}")
++    math(EXPR OPENJPEG_VERSION_NUM
++          "${MAJOR_VERSION}*${factor}*${factor} + ${MINOR_VERSION}*${factor} + ${REV_VERSION}"
++          )
++    unset(factor)
++    unset(MAJOR_VERSION)
++    unset(MINOR_VERSION)
++    unset(REV_VERSION)
++endif ()
++
++include(FindPackageHandleStandardArgs)
++find_package_handle_standard_args(OPENJPEG 
++                                  REQUIRED_VARS OPENJPEG_LIBRARY OPENJPEG_INCLUDE_DIR 
++                                  VERSION_VAR OPENJPEG_VERSION_STRING)
++
++IF(OPENJPEG_FOUND)
++  set(OPENJPEG_LIBRARIES ${OPENJPEG_LIBRARY})
++  set(OPENJPEG_INCLUDE_DIRS ${OPENJPEG_INCLUDE_DIR})
++ENDIF()
++
+diff --git a/cmake/FindPROJ4.cmake b/cmake/FindPROJ4.cmake
+new file mode 100644
+index 0000000..28c3a80
+--- /dev/null
++++ b/cmake/FindPROJ4.cmake
+@@ -0,0 +1,77 @@
++###############################################################################
++# CMake module to search for PROJ.4 library
++#
++# On success, the macro sets the following variables:
++# PROJ4_FOUND       = if the library found
++# PROJ4_LIBRARY     = full path to the library
++# PROJ4_INCLUDE_DIR = where to find the library headers 
++# also defined, but not for general use are
++# PROJ4_LIBRARY, where to find the PROJ.4 library.
++#
++# Copyright (c) 2009 Mateusz Loskot <mateusz@loskot.net>
++# Copyright (c) 2015 NextGIS <info@nextgis.com>
++#
++# Redistribution and use is allowed according to the terms of the BSD license.
++# For details see the accompanying COPYING-CMAKE-SCRIPTS file.
++#
++###############################################################################
++
++# Try to use OSGeo4W installation
++IF(WIN32)
++    SET(PROJ4_OSGEO4W_HOME "C:/OSGeo4W") 
++
++    IF($ENV{OSGEO4W_HOME})
++        SET(PROJ4_OSGEO4W_HOME "$ENV{OSGEO4W_HOME}") 
++    ENDIF()
++ENDIF(WIN32)
++
++FIND_PATH(PROJ4_INCLUDE_DIR proj_api.h
++    PATHS ${PROJ4_OSGEO4W_HOME}/include
++    DOC "Path to PROJ.4 library include directory")
++
++SET(PROJ4_NAMES ${PROJ4_NAMES} proj proj_i)
++FIND_LIBRARY(PROJ4_LIBRARY
++    NAMES ${PROJ4_NAMES}
++    PATHS ${PROJ4_OSGEO4W_HOME}/lib
++    DOC "Path to PROJ.4 library file")
++
++if(PROJ4_INCLUDE_DIR)
++    set(PROJ4_VERSION_MAJOR 0)
++    set(PROJ4_VERSION_MINOR 0)
++    set(PROJ4_VERSION_PATCH 0)
++    set(PROJ4_VERSION_NAME "EARLY RELEASE")
++
++    if(EXISTS "${PROJ4_INCLUDE_DIR}/proj_api.h")
++        file(READ "${PROJ4_INCLUDE_DIR}/proj_api.h" PROJ_API_H_CONTENTS)
++        string(REGEX MATCH "PJ_VERSION[ \t]+([0-9]+)"
++          PJ_VERSION ${PROJ_API_H_CONTENTS})
++        string (REGEX MATCH "([0-9]+)"
++          PJ_VERSION ${PJ_VERSION})
++
++        string(SUBSTRING ${PJ_VERSION} 0 1 PROJ4_VERSION_MAJOR)
++        string(SUBSTRING ${PJ_VERSION} 1 1 PROJ4_VERSION_MINOR)
++        string(SUBSTRING ${PJ_VERSION} 2 1 PROJ4_VERSION_PATCH)
++        unset(PROJ_API_H_CONTENTS)
++    endif()
++      
++    set(PROJ4_VERSION_STRING "${PROJ4_VERSION_MAJOR}.${PROJ4_VERSION_MINOR}.${PROJ4_VERSION_PATCH}")   
++endif ()    
++         
++# Handle the QUIETLY and REQUIRED arguments and set SPATIALINDEX_FOUND to TRUE
++# if all listed variables are TRUE
++include(FindPackageHandleStandardArgs)
++find_package_handle_standard_args(PROJ4 
++                                  REQUIRED_VARS PROJ4_LIBRARY PROJ4_INCLUDE_DIR 
++                                  VERSION_VAR PROJ4_VERSION_STRING)
++
++IF(PROJ4_FOUND)
++  set(PROJ4_LIBRARIES ${PROJ4_LIBRARY})
++  set(PROJ4_INCLUDE_DIRS ${PROJ4_INCLUDE_DIR})
++ENDIF()
++
++# Hide internal variables
++mark_as_advanced(
++  PROJ4_INCLUDE_DIR
++  PROJ4_LIBRARY)
++
++#======================
+diff --git a/cmake/FindPixman.cmake b/cmake/FindPixman.cmake
+new file mode 100644
+index 0000000..f8b03f0
+--- /dev/null
++++ b/cmake/FindPixman.cmake
+@@ -0,0 +1,43 @@
++## FindPIXMAN.cmake
++##
++## Copyright (C) 2016 Christian Schenk
++## 
++## This file is free software; you can redistribute it and/or modify
++## it under the terms of the GNU General Public License as published
++## by the Free Software Foundation; either version 2, or (at your
++## option) any later version.
++## 
++## This file is distributed in the hope that it will be useful, but
++## WITHOUT ANY WARRANTY; without even the implied warranty of
++## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++## General Public License for more details.
++## 
++## You should have received a copy of the GNU General Public License
++## along with this file; if not, write to the Free Software
++## Foundation, 59 Temple Place - Suite 330, Boston, MA 02111-1307,
++## USA.
++
++find_path(PIXMAN_INCLUDE_DIR
++  NAMES
++    pixman.h
++  PATH_SUFFIXES
++    pixman-1
++)
++
++find_library(PIXMAN_LIBRARY
++  NAMES
++    pixman-1
++)
++
++INCLUDE(FindPackageHandleStandardArgs)
++find_package_handle_standard_args(PIXMAN DEFAULT_MSG PIXMAN_LIBRARY PIXMAN_INCLUDE_DIR)
++
++if(PIXMAN_FOUND)
++  set(PIXMAN_INCLUDE_DIRS ${PIXMAN_INCLUDE_DIR})
++  set(PIXMAN_LIBRARIES ${PIXMAN_LIBRARY})
++else()
++  set(PIXMAN_INCLUDE_DIRS)
++  set(PIXMAN_LIBRARIES)
++endif()
++
++mark_as_advanced(PIXMAN_LIBRARY PIXMAN_INCLUDE_DIR)
+diff --git a/cmake/FindSPATIALITE.cmake b/cmake/FindSPATIALITE.cmake
+new file mode 100644
+index 0000000..0d5ef10
+--- /dev/null
++++ b/cmake/FindSPATIALITE.cmake
+@@ -0,0 +1,72 @@
++# Find SpatiaLite
++# ~~~~~~~~~~~~~~~
++#
++# Copyright (c) 2009, Sandro Furieri <a.furieri at lqt.it>
++# Copyright (C) 2017, Hiroshi Miura
++# Redistribution and use is allowed according to the terms of the BSD license.
++# For details see the accompanying COPYING-CMAKE-SCRIPTS file.
++#
++# CMake module to search for SpatiaLite library
++#
++# If it's found it sets SPATIALITE_FOUND to TRUE
++# and following variables are set:
++#    SPATIALITE_INCLUDE_DIR
++#    SPATIALITE_LIBRARY
++#    SPATIALITE_VERSION_STRING
++
++# FIND_PATH and FIND_LIBRARY normally search standard locations
++# before the specified paths. To search non-standard paths first,
++# FIND_* is invoked first with specified paths and NO_DEFAULT_PATH
++# and then again with no specified paths to search the default
++# locations. When an earlier FIND_* succeeds, subsequent FIND_*s
++# searching for the same item do nothing. 
++
++# try to use sqlite framework on mac
++# want clean framework path, not unix compatibility path
++IF (APPLE)
++    IF (CMAKE_FIND_FRAMEWORK MATCHES "FIRST"
++      OR CMAKE_FRAMEWORK_PATH MATCHES "ONLY"
++      OR NOT CMAKE_FIND_FRAMEWORK)
++        SET (CMAKE_FIND_FRAMEWORK_save ${CMAKE_FIND_FRAMEWORK} CACHE STRING "" FORCE)
++        SET (CMAKE_FIND_FRAMEWORK "ONLY" CACHE STRING "" FORCE)
++        FIND_PATH(SPATIALITE_INCLUDE_DIR spatialite.h)
++        # if no spatialite header, we don't want sqlite find below to succeed
++        IF (SPATIALITE_INCLUDE_DIR)
++            FIND_LIBRARY(SPATIALITE_LIBRARY spatialite)
++            # FIND_PATH doesn't add "Headers" for a framework
++            SET (SPATIALITE_INCLUDE_DIR ${SPATIALITE_LIBRARY}/Headers CACHE PATH "Path to a file." FORCE)
++        ENDIF (SPATIALITE_INCLUDE_DIR)
++        SET (CMAKE_FIND_FRAMEWORK ${CMAKE_FIND_FRAMEWORK_save} CACHE STRING "" FORCE)
++    ENDIF ()
++ENDIF (APPLE)
++
++FIND_PACKAGE(PkgConfig QUIET)
++IF(PKG_CONFIG_FOUND)
++    # try using pkg-config to get the directories and then use these values
++    # in the FIND_PATH() and FIND_LIBRARY() calls
++    PKG_CHECK_MODULES(PC_SPATIALITE QUIET spatialite)
++    SET(SPATIALITE_VERSION_STRING ${PC_SPATIALITE_VERSION} CACHE INTERNAL "")
++ENDIF()
++
++FIND_PATH(SPATIALITE_INCLUDE_DIR
++          NAMES spatialite.h
++          HINSTS ${PC_SPATIALITE_INCLUDE_DIR})
++FIND_LIBRARY(SPATIALITE_LIBRARY
++             NAMES spatialite
++             HINTS ${PC_SPATIALITE_LIBRARY})
++
++mark_as_advanced(SPATIALITE_LIBRARY SPATIALITE_INCLUDE_DIR)
++
++# Handle the QUIETLY and REQUIRED arguments and set GEOS_FOUND to TRUE
++# if all listed variables are TRUE
++INCLUDE(FindPackageHandleStandardArgs)
++FIND_PACKAGE_HANDLE_STANDARD_ARGS(SPATIALITE
++                                  FOUND_VAR SPATIALITE_FOUND
++                                  REQUIRED_VARS SPATIALITE_LIBRARY SPATIALITE_INCLUDE_DIR
++                                  VERSION_VAR SPATIALITE_VERSION_STRING)
++
++if(SPATIALITE_FOUND)
++    set(SPATIALITE_LIBRARIES ${SPATIALITE_LIBRARY})
++    set(SPATIALITE_INCLUDE_DIRS ${SPATIALITE_INCLUDE_DIR})
++endif()
++
+diff --git a/cmake/FindSQLite3.cmake b/cmake/FindSQLite3.cmake
+new file mode 100644
+index 0000000..7e8128b
+--- /dev/null
++++ b/cmake/FindSQLite3.cmake
+@@ -0,0 +1,75 @@
++###############################################################################
++# - Try to find Sqlite3
++# Once done this will define
++#
++#  SQLITE3_FOUND - system has Sqlite3
++#  SQLITE3_INCLUDE_DIRS - the Sqlite3 include directory
++#  SQLITE3_LIBRARIES - Link these to use Sqlite3
++#
++#  Copyright (c) 2008 Andreas Schneider <mail@cynapses.org>
++#  Copyright (c) 2016, NextGIS <info@nextgis.com>
++#
++#  Redistribution and use is allowed according to the terms of the New
++#  BSD license.
++#  For details see the accompanying COPYING-CMAKE-SCRIPTS file.
++###############################################################################
++
++if(SQLITE3_INCLUDE_DIR AND SQLITE3_LIBRARY)
++  # Already in cache, be silent
++  set(SQLITE3_FIND_QUIETLY TRUE)
++endif()
++
++find_package(PkgConfig QUIET)
++if(PKG_CONFIG_FOUND)
++    # try using pkg-config to get the directories and then use these values
++    # in the FIND_PATH() and FIND_LIBRARY() calls
++    pkg_check_modules(PC_SQLITE3 QUIET sqlite3)
++    SET(SQLITE3_VERSION_STRING ${PC_SQLITE3_VERSION} CACHE INTERNAL "")
++endif()
++
++find_path(SQLITE3_INCLUDE_DIR
++          NAMES  sqlite3.h
++          HINTS ${PC_SQLITE3_INCLUDE_DIR}
++)
++
++find_library(SQLITE3_LIBRARY
++             NAMES sqlite3 sqlite3_i
++             HINTS ${PC_SQLITE3_LIBRARY}
++)
++if(SQLITE3_INCLUDE_DIR AND SQLITE3_LIBRARY)
++    get_filename_component(SQLITE3_LIBRARY_DIR ${SQLITE3_LIBRARY} DIRECTORY)
++        message(STATUS "${SQLITE3_LIBRARY_DIR}")
++    find_PATH(SQLITE3_PCRE_LIBRARY
++              NAMES pcre.${CMAKE_SHARED_LIBRARY_SUFFIX}
++              SUFFIX_PATHS sqlite3
++              PATHS /usr/lib
++              HINTS ${SQLITE3_LIBRARY_DIR})
++    # check column metadata
++    set(SQLITE_COL_TEST_CODE "#ifdef __cplusplus
++extern \"C\"
++#endif
++char sqlite3_column_table_name ();
++int
++main ()
++{
++return sqlite3_column_table_name ();
++  return 0;
++}
++")
++    check_c_source_compiles("${SQLITE_COL_TEST_CODE}"  SQLITE_HAS_COLUMN_METADATA)
++    set(SQLITE_HAS_COLUMN_METADATA ${SQLITE_HAS_COLUMN_METADATA} CACHE BOOL "SQLite has column metadata.")
++endif()
++mark_as_advanced(SQLITE3_LIBRARY SQLITE3_INCLUDE_DIR SQLITE3_PCRE_LIBRARY SQLITE_HAS_COLUMN_METADATA)
++
++# Handle the QUIETLY and REQUIRED arguments and set GEOS_FOUND to TRUE
++# if all listed variables are TRUE
++INCLUDE(FindPackageHandleStandardArgs)
++FIND_PACKAGE_HANDLE_STANDARD_ARGS(SQLITE3
++                                  FOUND_VAR SQLITE3_FOUND
++                                  REQUIRED_VARS SQLITE3_LIBRARY SQLITE3_INCLUDE_DIR
++                                  VERSION_VAR SQLITE3_VERSION_STRING)
++
++if(SQLITE3_FOUND)
++  set(SQLITE3_LIBRARIES ${SQLITE3_LIBRARY})
++  set(SQLITE3_INCLUDE_DIRS ${SQLITE3_INCLUDE_DIR})
++endif()
+diff --git a/cmake/FindTIFF.cmake b/cmake/FindTIFF.cmake
+new file mode 100644
+index 0000000..7eead1d
+--- /dev/null
++++ b/cmake/FindTIFF.cmake
+@@ -0,0 +1,105 @@
++# Distributed under the OSI-approved BSD 3-Clause License.  See accompanying
++# file Copyright.txt or https://cmake.org/licensing for details.
++
++#.rst:
++# FindTIFF
++# --------
++#
++# Find the TIFF library (libtiff).
++#
++# Imported targets
++# ^^^^^^^^^^^^^^^^
++#
++# This module defines the following :prop_tgt:`IMPORTED` targets:
++#
++# ``TIFF::TIFF``
++#   The TIFF library, if found.
++#
++# Result variables
++# ^^^^^^^^^^^^^^^^
++#
++# This module will set the following variables in your project:
++#
++# ``TIFF_FOUND``
++#   true if the TIFF headers and libraries were found
++# ``TIFF_INCLUDE_DIR``
++#   the directory containing the TIFF headers
++# ``TIFF_INCLUDE_DIRS``
++#   the directory containing the TIFF headers
++# ``TIFF_LIBRARIES``
++#   TIFF libraries to be linked
++#
++# Cache variables
++# ^^^^^^^^^^^^^^^
++#
++# The following cache variables may also be set:
++#
++# ``TIFF_INCLUDE_DIR``
++#   the directory containing the TIFF headers
++# ``TIFF_LIBRARY``
++#   the path to the TIFF library
++
++find_path(TIFF_INCLUDE_DIR tiff.h)
++
++set(TIFF_NAMES ${TIFF_NAMES} tiff libtiff libtiff_i tiff3 libtiff3)
++foreach(name ${TIFF_NAMES})
++  list(APPEND TIFF_NAMES_DEBUG "${name}d")
++endforeach()
++
++if(NOT TIFF_LIBRARY)
++  find_library(TIFF_LIBRARY_RELEASE NAMES ${TIFF_NAMES})
++  find_library(TIFF_LIBRARY_DEBUG NAMES ${TIFF_NAMES_DEBUG})
++  include(SelectLibraryConfigurations)
++  select_library_configurations(TIFF)
++  mark_as_advanced(TIFF_LIBRARY_RELEASE TIFF_LIBRARY_DEBUG)
++endif()
++unset(TIFF_NAMES)
++unset(TIFF_NAMES_DEBUG)
++
++if(TIFF_INCLUDE_DIR AND EXISTS "${TIFF_INCLUDE_DIR}/tiffvers.h")
++    file(STRINGS "${TIFF_INCLUDE_DIR}/tiffvers.h" tiff_version_str
++         REGEX "^#define[\t ]+TIFFLIB_VERSION_STR[\t ]+\"LIBTIFF, Version .*")
++
++    string(REGEX REPLACE "^#define[\t ]+TIFFLIB_VERSION_STR[\t ]+\"LIBTIFF, Version +([^ \\n]*).*"
++           "\\1" TIFF_VERSION_STRING "${tiff_version_str}")
++    unset(tiff_version_str)
++endif()
++
++include(FindPackageHandleStandardArgs)
++FIND_PACKAGE_HANDLE_STANDARD_ARGS(TIFF
++                                  REQUIRED_VARS TIFF_LIBRARY TIFF_INCLUDE_DIR
++                                  VERSION_VAR TIFF_VERSION_STRING)
++
++if(TIFF_FOUND)
++  set(TIFF_LIBRARIES ${TIFF_LIBRARY})
++  set(TIFF_INCLUDE_DIRS "${TIFF_INCLUDE_DIR}")
++
++  if(NOT TARGET TIFF::TIFF)
++    add_library(TIFF::TIFF UNKNOWN IMPORTED)
++    if(TIFF_INCLUDE_DIRS)
++      set_target_properties(TIFF::TIFF PROPERTIES
++        INTERFACE_INCLUDE_DIRECTORIES "${TIFF_INCLUDE_DIRS}")
++    endif()
++    if(EXISTS "${TIFF_LIBRARY}")
++      set_target_properties(TIFF::TIFF PROPERTIES
++        IMPORTED_LINK_INTERFACE_LANGUAGES "C"
++        IMPORTED_LOCATION "${TIFF_LIBRARY}")
++    endif()
++    if(EXISTS "${TIFF_LIBRARY_RELEASE}")
++      set_property(TARGET TIFF::TIFF APPEND PROPERTY
++        IMPORTED_CONFIGURATIONS RELEASE)
++      set_target_properties(TIFF::TIFF PROPERTIES
++        IMPORTED_LINK_INTERFACE_LANGUAGES_RELEASE "C"
++        IMPORTED_LOCATION_RELEASE "${TIFF_LIBRARY_RELEASE}")
++    endif()
++    if(EXISTS "${TIFF_LIBRARY_DEBUG}")
++      set_property(TARGET TIFF::TIFF APPEND PROPERTY
++        IMPORTED_CONFIGURATIONS DEBUG)
++      set_target_properties(TIFF::TIFF PROPERTIES
++        IMPORTED_LINK_INTERFACE_LANGUAGES_DEBUG "C"
++        IMPORTED_LOCATION_DEBUG "${TIFF_LIBRARY_DEBUG}")
++    endif()
++  endif()
++endif()
++
++mark_as_advanced(TIFF_INCLUDE_DIR TIFF_LIBRARY)
+diff --git a/cmake/FindWEBP.cmake b/cmake/FindWEBP.cmake
+new file mode 100644
+index 0000000..c2ae3ad
+--- /dev/null
++++ b/cmake/FindWEBP.cmake
+@@ -0,0 +1,40 @@
++# - Try to find the WEBP library
++#
++# Once done this will define
++#
++#  WEBP_FOUND - System has libgta
++#  WEBP_INCLUDE_DIR - The libgta include directory
++#  WEBP_LIBRARIES - The libraries needed to use libgta
++
++
++IF(WEBP_INCLUDE_DIR AND WEBP_LIBRARY)
++    # in cache already
++    SET(WEBP_FIND_QUIETLY TRUE)
++ENDIF()
++
++FIND_PACKAGE(PkgConfig QUIET)
++IF(PKG_CONFIG_FOUND)
++    # try using pkg-config to get the directories and then use these values
++    # in the FIND_PATH() and FIND_LIBRARY() calls
++    PKG_CHECK_MODULES(PC_WEBP QUIET libwebp)
++    SET(WEBP_VERSION_STRING ${PC_WEBP_VERSION})
++ENDIF()
++
++FIND_PATH(WEBP_INCLUDE_DIR webp/encode.h HINTS ${PC_WEBP_INCLUDE_DIRS})
++
++FIND_LIBRARY(WEBP_LIBRARY NAMES webp libwebp HINTS ${PC_WEBP_LIBRARY_DIRS})
++
++MARK_AS_ADVANCED(WEBP_INCLUDE_DIR WEBP_LIBRARY)
++
++# handle the QUIETLY and REQUIRED arguments and set CFITSIO_FOUND to TRUE if
++# all listed variables are TRUE
++INCLUDE(FindPackageHandleStandardArgs)
++FIND_PACKAGE_HANDLE_STANDARD_ARGS(WEBP
++    REQUIRED_VARS WEBP_LIBRARY WEBP_INCLUDE_DIR
++    VERSION_VAR WEBP_VERSION_STRING
++)
++
++IF(WEBP_FOUND)
++    SET(WEBP_LIBRARIES ${WEBP_LIBRARY})
++    SET(WEBP_INCLUDE_DIRS ${WEBP_INCLUDE_DIR})
++ENDIF()
+diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
+new file mode 100644
+index 0000000..4656e5d
+--- /dev/null
++++ b/src/CMakeLists.txt
+@@ -0,0 +1,91 @@
++if (MSVC OR CMAKE_CONFIGURATION_TYPES)
++  # For multi-config systems and for Visual Studio, the debug versions
++  # of the libraries have a _d suffix.
++  set (CMAKE_DEBUG_POSTFIX _d)
++endif ()
++if(MSVC)
++  set(EXPORT_SYMBOL DLL_EXPORT)
++else()
++  set(EXPORT_SYMBOL EXPORT)
++endif()
++
++file(GLOB C_SOURCES *.c)
++add_library(${TARGET_NAME} ${C_SOURCES})
++if(BUILD_SHARED_LIBS)
++    set_target_properties(${TARGET_NAME} PROPERTIES
++        OUTPUT_NAME "${LIB_NAME}"
++        SOVERSION ${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}
++        VERSION   ${PROJECT_VERSION}
++        CLEAN_DIRECT_OUTPUT 1
++        DEFINE_SYMBOL ${EXPORT_SYMBOL})
++else()
++    set_target_properties(${TARGET_NAME} PROPERTIES
++        OUTPUT_NAME "${LIB_NAME}"
++        VERSION   ${PROJECT_VERSION}
++        CLEAN_DIRECT_OUTPUT 1)
++endif()
++target_include_directories(${TARGET_NAME}
++      PRIVATE
++        ${HEADER_DIRS}
++      PUBLIC
++        ${CAIRO_INCLUDE_DIR}
++        ${CHARLS_INCLUDE_DIRS}
++        ${CURL_INCLUDE_DIRS}
++        ${FREEXL_INCLUDE_DIR}
++        ${GEOS_INCLUDE_DIRS}
++        ${GEOTIFF_INCLUDE_DIRS}
++        ${GIFLIB_INCLUDE_DIR}
++        ${JPEG_INCLUDE_DIR}
++        ${LIBXML2_INCLUDE_DIR}
++        ${LZMA_INCLUDE_DIR}
++        ${OPENJPEG_INCLUDE_DIR}
++        ${PIXMAN_INCLUDE_DIRS}
++        ${PNG_INCLUDE_DIRS}
++        ${PROJ4_INCLUDE_DIRS}
++        ${SPATIALITE_INCLUDE_DIRS}
++        ${SQLITE3_INCLUDE_DIRS}
++        ${TIFF_INCLUDE_DIRS}
++        ${WEBP_INCLUDE_DIRS}
++        ${ZLIB_INCLUDE_DIRS})
++target_link_libraries(${TARGET_NAME} PUBLIC
++        ${TIFF_LIBRARIES}
++        ${CAIRO_LIBRARY}
++        ${CHARLS_LIBRARIES}
++        ${CURL_LIBRARY}
++        ${FREEXL_LIBRARY}
++        ${GEOS_LIBRARIES}
++        ${GEOTIFF_LIBRARIES}
++        ${GIFLIB_LIBRARY}
++        ${JPEG_LIBRARIES}
++        ${LIBXML2_LIBRARIES}
++        ${LZMA_LIBRARY}
++        ${OPENJPEG_LIBRARIES}
++        ${PNG_LIBRARIES}
++        ${PIXMAN_LIBRARIES}
++        ${PROJ4_LIBRARIES}
++        ${SQLITE3_LIBRARIES}
++        ${SPATIALITE_LIBRARIES}
++        ${WEBP_LIBRARIES}
++        ${ZLIB_LIBRARIES})
++
++find_package(Iconv)
++if(ICONV_FOUND)
++  if(NOT Iconv_IS_BUILT_IN)
++    target_include_directories(${TARGET_NAME} PRIVATE ${Iconv_INCLUDE_DIR})
++    target_link_libraries(${TARGET_NAME} PRIVATE ${Iconv_LIBRARY})
++  endif()
++endif()
++
++add_definitions("-DVERSION=\"${PROJECT_VERSION}\"")
++add_definitions("-DTARGET_CPU=\"${CMAKE_SYSTEM_PROCESSOR}\"")
++if(MSVC)
++add_definitions("-DM_PI=3.14159265358979323846")
++endif()
++
++install(TARGETS ${TARGET_NAME}
++            EXPORT ${TARGET_NAME}-depends
++            RUNTIME DESTINATION bin
++            LIBRARY DESTINATION lib
++            ARCHIVE DESTINATION lib)
++install(DIRECTORY ${CMAKE_SOURCE_DIR}/headers/rasterlite2
++            DESTINATION include)
+-- 
+2.16.1
+
