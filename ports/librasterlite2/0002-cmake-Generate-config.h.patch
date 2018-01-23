@@ -1,0 +1,197 @@
+From 3e61d6166aff9a34ade951a1c2fcd8cbbdc2b32c Mon Sep 17 00:00:00 2001
+From: Hiroshi Miura <miurahr@linux.com>
+Date: Sat, 17 Feb 2018 11:31:53 +0900
+Subject: [PATCH 2/6] [cmake] Generate config.h
+
+- Fix strcasecmp reference in rl2wms.c too.
+
+Signed-off-by: Hiroshi Miura <miurahr@linux.com>
+---
+ CMakeLists.txt    |  5 +++-
+ config.h.cmake.in | 90 +++++++++++++++++++++++++++++++++++++++++++++++++++++++
+ configure.cmake   | 46 ++++++++++++++++++++++++++++
+ src/rl2wms.c      |  1 +
+ 4 files changed, 141 insertions(+), 1 deletion(-)
+ create mode 100644 config.h.cmake.in
+ create mode 100644 configure.cmake
+
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 12ba5f6..c847dd3 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -19,7 +19,10 @@ if(MSVC)
+     set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} /nologo ${CL_FLAGS_DBG}")
+ endif(MSVC)
+ 
+-set(HEADER_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/headers)
++# Generate config.h
++include(configure.cmake)
++configure_file(${CMAKE_CURRENT_SOURCE_DIR}/config.h.cmake.in ${CMAKE_CURRENT_BINARY_DIR}/config.h)
++set(HEADER_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/headers ${CMAKE_CURRENT_BINARY_DIR})
+ 
+ # macro
+ include(FindPackageHandleStandardArgs)
+diff --git a/config.h.cmake.in b/config.h.cmake.in
+new file mode 100644
+index 0000000..93bdf98
+--- /dev/null
++++ b/config.h.cmake.in
+@@ -0,0 +1,90 @@
++/* config.h.cmake.in derived from config.h.in  */
++
++/* Define to 1 if you have the <dlfcn.h> header file. */
++#cmakedefine HAVE_DLFCN_H
++
++/* Define to 1 if you have the <float.h> header file. */
++#cmakedefine HAVE_FLOAT_H
++
++/* Define to 1 if you have the <libgeotiff/geotiff.h> header file. */
++#cmakedefine HAVE_LIBGEOTIFF_GEOTIFF_H
++
++/* Define to 1 if you have the <geotiff/geotiff.h> header file. */
++#cmakedefine HAVE_GEOTIFF_GEOTIFF_H
++
++/* Define to 1 if you have the <geotiff.h> header file. */
++#cmakedefine HAVE_GEOTIFF_H
++
++/* Define to 1 if you have the <gif_lib.h> header file. */
++#cmakedefine HAVE_GIF_LIB_H
++
++/* Define to 1 if you have the <inttypes.h> header file. */
++#cmakedefine HAVE_INTTYPES_H
++
++/* Define to 1 if you have the <jerror.h> header file. */
++#cmakedefine HAVE_JERROR_H
++
++/* Define to 1 if you have the <jpeglib.h> header file. */
++#cmakedefine HAVE_JPEGLIB_H
++
++/* Define to 1 if you have the <lzma.h> header file. */
++#cmakedefine HAVE_LZMA_H
++
++/* Define to 1 if you have the <math.h> header file. */
++#cmakedefine HAVE_MATH_H
++
++/* Define to 1 if you have the <memory.h> header file. */
++#cmakedefine HAVE_MEMORY_H
++
++/* Define to 1 if you have the <png.h> header file. */
++#cmakedefine HAVE_PNG_H
++
++/* Define to 1 if you have the `sqrt' function. */
++#cmakedefine HAVE_SQRT
++
++/* Define to 1 if you have the <stdint.h> header file. */
++#cmakedefine HAVE_STDINT_H
++
++/* Define to 1 if you have the <stdio.h> header file. */
++#cmakedefine HAVE_STDIO_H
++
++/* Define to 1 if you have the <stdlib.h> header file. */
++#cmakedefine HAVE_STDLIB_H
++
++/* Define to 1 if you have the `strcasecmp' function. */
++#cmakedefine HAVE_STRCASECMP
++
++/* Define to 1 if you have the `strerror' function. */
++#cmakedefine HAVE_STRERROR
++
++/* Define to 1 if you have the `strftime' function. */
++#cmakedefine HAVE_STRFTIME
++
++/* Define to 1 if you have the <strings.h> header file. */
++#cmakedefine HAVE_STRINGS_H
++
++/* Define to 1 if you have the <string.h> header file. */
++#cmakedefine HAVE_STRING_H
++
++/* Define to 1 if you have the `strncasecmp' function. */
++#cmakedefine HAVE_STRNCASECMP
++
++/* Define to 1 if you have the `strstr' function. */
++#cmakedefine HAVE_STRSTR
++
++/* Define to 1 if you have the <sys/stat.h> header file. */
++#cmakedefine HAVE_SYS_STAT_H
++
++/* Define to 1 if you have the <sys/types.h> header file. */
++#cmakedefine HAVE_SYS_TYPES_H
++
++/* Define to 1 if you have the <unistd.h> header file. */
++#cmakedefine HAVE_UNISTD_H
++
++/* Define to 1 if you have the <zlib.h> header file. */
++#cmakedefine HAVE_ZLIB_H
++
++#ifdef _MSC_VER 
++#define strncasecmp _strnicmp
++#define strcasecmp _stricmp
++#endif
+\ No newline at end of file
+diff --git a/configure.cmake b/configure.cmake
+new file mode 100644
+index 0000000..6ec3146
+--- /dev/null
++++ b/configure.cmake
+@@ -0,0 +1,46 @@
++
++# Include all the necessary files for macros
++include (CheckFunctionExists)
++include (CheckIncludeFile)
++include (CheckIncludeFiles)
++include (CheckLibraryExists)
++include (CheckSymbolExists)
++include (CheckTypeSize)
++include (TestBigEndian)
++include (CheckCSourceCompiles)
++
++check_function_exists(vsnprintf HAVE_VSNPRINTF)
++check_function_exists(snprintf HAVE_SNPRINTF)
++check_function_exists(getcwd HAVE_GETCWD)
++check_function_exists(sqrt HAVE_SQRT)
++
++check_include_file("dlfch.h" HAVE_DLFCH_H)
++check_include_file("float.h" HAVE_FLOAT_H)
++check_include_file("geotiff/geotiff.h" HAVE_GEOTIFF_GEOTIFF_H)
++check_include_file("geotiff.h" HAVE_GEOTIFF_H)
++check_include_file("gif_lib.h" HAVE_GIF_LIB_H)
++check_include_file("inttypes.h" HAVE_INTTYPES_H)
++check_include_file("jerror.h" HAVE_JERROR_H)
++check_include_file("jpeglib.h" HAVE_JPEGLIB_H)
++check_include_file("lzma.h" HAVE_LZMA_H)
++check_include_file("math.h" HAVE_MATH_H)
++check_include_file("memory.h" HAVE_MEMORY_H)
++check_include_file("png.h" HAVE_PNG_H)
++check_include_file("stdint.h" HAVE_STDINT_H)
++check_include_file("stdio.h" HAVE_STDIO_H)
++check_include_file("stdlib.h" HAVE_STDLIB_H)
++
++check_function_exists(strcasecmp HAVE_STRCASECMP)
++check_function_exists(strerror HAVE_STRERROR)
++check_function_exists(strftime HAVE_STRFTIME)
++
++check_include_file("strings.h" HAVE_STRINGS_H)
++check_include_file("string.h" HAVE_STRING_H)
++
++check_function_exists(strncasecmp HAVE_STRNCASECMP)
++check_function_exists(strstr HAVE_STRSTR)
++
++check_include_file("sys/stat.h" HAVE_SYS_STAT_H)
++check_include_file("sys/types.h" HAVE_SYS_TYPES_H)
++check_include_file("sys/unistd.h" HAVE_SYS_UNISTD_H)
++check_include_file("zlib.h" HAVE_ZLIB_H)
+diff --git a/src/rl2wms.c b/src/rl2wms.c
+index fafa6e6..c742ecf 100644
+--- a/src/rl2wms.c
++++ b/src/rl2wms.c
+@@ -50,6 +50,7 @@ the terms of any one of the MPL, the GPL or the LGPL.
+ #include <curl/curl.h>
+ #include <libxml/parser.h>
+ 
++#include "config.h"
+ #include "rasterlite2/sqlite.h"
+ 
+ #include "rasterlite2/rasterlite2.h"
+-- 
+2.16.1
+

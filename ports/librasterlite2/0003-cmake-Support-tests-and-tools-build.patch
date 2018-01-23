@@ -1,0 +1,93 @@
+From 2e56bf7a669c8e606b5da0d3ce0727eea636e74d Mon Sep 17 00:00:00 2001
+From: Hiroshi Miura <miurahr@linux.com>
+Date: Sat, 17 Feb 2018 11:35:23 +0900
+Subject: [PATCH 3/6] [cmake] Support tests and tools build
+
+Signed-off-by: Hiroshi Miura <miurahr@linux.com>
+---
+ CMakeLists.txt       |  9 +++++++++
+ test/CMakeLists.txt  | 25 +++++++++++++++++++++++++
+ tools/CMakeLists.txt | 19 +++++++++++++++++++
+ 3 files changed, 53 insertions(+)
+ create mode 100644 test/CMakeLists.txt
+ create mode 100644 tools/CMakeLists.txt
+
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index c847dd3..c4f730f 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -58,3 +58,12 @@ find_package(Threads)
+ 
+ # build library
+ add_subdirectory(src)
++
++# test library
++if(NOT MSVC)
++enable_testing()
++add_subdirectory(test)
++endif()
++
++# build tools
++add_subdirectory(tools)
+\ No newline at end of file
+diff --git a/test/CMakeLists.txt b/test/CMakeLists.txt
+new file mode 100644
+index 0000000..dffb1fa
+--- /dev/null
++++ b/test/CMakeLists.txt
+@@ -0,0 +1,25 @@
++
++set(TEST_COMMANDS)
++file(GLOB TESTCASE test*.c)
++foreach(TESTF IN LISTS TESTCASE)
++    get_filename_component(TESTNAME ${TESTF} NAME_WE)
++    add_executable(${TESTNAME} ${TESTF})
++    target_include_directories(${TESTNAME} PRIVATE ${HEADER_DIRS}
++        ${LIBXML2_INCLUDE_DIR}
++        ${SQLITE3_INCLUDE_DIRS}
++        ${SPATIALITE_INCLUDE_DIRS})
++    target_link_libraries(${TESTNAME} PRIVATE  $<TARGET_NAME:${TARGET_NAME}>
++        ${LIBXML2_LIBRARIES}
++        ${SQLITE3_LIBRARIES}
++        ${SPATIALITE_LIBRARIES})
++    add_test(NAME ${TESTNAME} COMMAND ${TESTNAME})
++    list(APPEND TEST_COMMANDS ${TESTNAME})
++endforeach()
++
++add_definitions(-DHAVE_CONFIG_H)
++
++# copy test data to build dir
++file(GLOB TEST_DATA *.svg *.xml *.gif *.tif *.jpg *.png *.webp)
++file(COPY ${TEST_DATA} map_samples sql_stmt_security_tests sql_stmt_tests
++     DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
++add_custom_target(tests COMMAND ${CMAKE_CTEST_COMMAND} DEPENDS ${TEST_COMMANDS})
+\ No newline at end of file
+diff --git a/tools/CMakeLists.txt b/tools/CMakeLists.txt
+new file mode 100644
+index 0000000..207ada2
+--- /dev/null
++++ b/tools/CMakeLists.txt
+@@ -0,0 +1,19 @@
++if(MSVC)
++    set(UTIL_TARGET rl2tool)
++else()
++    set(UTIL_TARGET rl2tool wmslite)
++endif()
++foreach(UTILNAME IN LISTS UTIL_TARGET)
++    add_executable(${UTILNAME} ${UTILNAME}.c)
++    target_include_directories(${UTILNAME} PRIVATE ${HEADER_DIRS}
++        ${SPATIALITE_INCLUDE_DIRS}
++        ${SQLITE3_INCLUDE_DIRS})
++    target_link_libraries(${UTILNAME} PRIVATE $<TARGET_NAME:${TARGET_NAME}>
++        ${SPATIALITE_LIBRARIES}
++        ${SQLITE3_LIBRARIES}
++        Threads::Threads)
++endforeach()
++install (TARGETS ${UTIL_TARGET}
++            RUNTIME DESTINATION bin
++            LIBRARY DESTINATION lib
++            ARCHIVE DESTINATION lib)
+\ No newline at end of file
+-- 
+2.16.1
+

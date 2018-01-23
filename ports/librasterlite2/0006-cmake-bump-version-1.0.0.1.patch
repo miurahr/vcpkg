@@ -1,0 +1,25 @@
+From 7bed86715c08b36fa60e3dfd2ab9b2a8ea5efc52 Mon Sep 17 00:00:00 2001
+From: Hiroshi Miura <miurahr@linux.com>
+Date: Tue, 20 Feb 2018 09:59:05 +0900
+Subject: [PATCH 6/6] [cmake] bump version: 1.0.0.1
+
+Signed-off-by: Hiroshi Miura <miurahr@linux.com>
+---
+ CMakeLists.txt | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index fa1a37f..8793333 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -1,6 +1,6 @@
+ cmake_minimum_required(VERSION 3.5)
+ project(librasterlite2
+-        VERSION 1.0.0.0
++        VERSION 1.0.0.1 # v1.0.0-rc0-devel1
+         LANGUAGES C)
+ set(CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
+ set(TARGET_NAME rasterlite2-target)
+-- 
+2.16.1
+

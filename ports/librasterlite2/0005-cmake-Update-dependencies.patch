@@ -1,0 +1,135 @@
+From 584038599833c09ec0affa677f541fe1fcbffe3f Mon Sep 17 00:00:00 2001
+From: Hiroshi Miura <miurahr@linux.com>
+Date: Mon, 19 Feb 2018 09:24:59 +0900
+Subject: [PATCH 5/6] [cmake] Update dependencies
+
+- Optional selection of CharLS, LZMA, OpenJPEG2 and WEBP.
+- Detect OpenJPEG versions and include path.
+
+Signed-off-by: Hiroshi Miura <miurahr@linux.com>
+---
+ CMakeLists.txt     |  5 +++--
+ config.h.cmake.in  |  6 ++++++
+ configure.cmake    |  6 ++++++
+ src/CMakeLists.txt | 30 ++++++++++++++++++++++++++++++
+ 4 files changed, 45 insertions(+), 2 deletions(-)
+
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index a3c039a..fa1a37f 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -35,8 +35,9 @@ endmacro()
+ 
+ #Find dependencies
+ local_find_package(CAIRO "cairo/cairo.h" "cairo")
+-find_package(CharLS REQUIRED)
++find_package(CharLS)
+ find_package(CURL REQUIRED)
++find_package(Freetype)
+ local_find_package(FREEXL "freexl.h" "freexl")
+ find_package(GEOS REQUIRED)
+ find_package(GeoTIFF REQUIRED)
+@@ -52,7 +53,7 @@ find_package(PROJ4 REQUIRED)
+ find_package(SPATIALITE REQUIRED)
+ find_package(SQLite3 REQUIRED)
+ find_package(TIFF REQUIRED)
+-find_package(WEBP REQUIRED)
++find_package(WEBP)
+ find_package(ZLIB REQUIRED)
+ find_package(Threads)
+ 
+diff --git a/config.h.cmake.in b/config.h.cmake.in
+index 93bdf98..599a768 100644
+--- a/config.h.cmake.in
++++ b/config.h.cmake.in
+@@ -36,6 +36,12 @@
+ /* Define to 1 if you have the <memory.h> header file. */
+ #cmakedefine HAVE_MEMORY_H
+ 
++/* Define to 1 if you have the <openjpeg-2.0/openjpeg.h> header file. */
++#cmakedefine HAVE_OPENJPEG_2_0_OPENJPEG_H
++
++/* Define to 1 if you have the <openjpeg-2.1/openjpeg.h> header file. */
++#cmakedefine HAVE_OPENJPEG_2_1_OPENJPEG_H
++
+ /* Define to 1 if you have the <png.h> header file. */
+ #cmakedefine HAVE_PNG_H
+ 
+diff --git a/configure.cmake b/configure.cmake
+index 6ec3146..77c3ba2 100644
+--- a/configure.cmake
++++ b/configure.cmake
+@@ -16,9 +16,15 @@ check_function_exists(sqrt HAVE_SQRT)
+ 
+ check_include_file("dlfch.h" HAVE_DLFCH_H)
+ check_include_file("float.h" HAVE_FLOAT_H)
++
+ check_include_file("geotiff/geotiff.h" HAVE_GEOTIFF_GEOTIFF_H)
+ check_include_file("geotiff.h" HAVE_GEOTIFF_H)
+ check_include_file("gif_lib.h" HAVE_GIF_LIB_H)
++check_include_file("openjpeg-2.0/openjpeg.h" HAVE_OPENJPEG_2_0_OPENJPEG_H)
++check_include_file("openjpeg-2.1/openjpeg.h" HAVE_OPENJPEG_2_1_OPENJPEG_H)
++check_include_file("openjpeg-2.2/openjpeg.h" HAVE_OPENJPEG_2_2_OPENJPEG_H)
++check_include_file("openjpeg-2.3/openjpeg.h" HAVE_OPENJPEG_2_3_OPENJPEG_H)
++
+ check_include_file("inttypes.h" HAVE_INTTYPES_H)
+ check_include_file("jerror.h" HAVE_JERROR_H)
+ check_include_file("jpeglib.h" HAVE_JPEGLIB_H)
+diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
+index 0e18c04..31112bc 100644
+--- a/src/CMakeLists.txt
++++ b/src/CMakeLists.txt
+@@ -31,6 +31,7 @@ target_include_directories(${TARGET_NAME}
+         ${CAIRO_INCLUDE_DIR}
+         ${CHARLS_INCLUDE_DIRS}
+         ${CURL_INCLUDE_DIRS}
++        ${FREETYPE_INCLUDE_DIRS}
+         ${FREEXL_INCLUDE_DIR}
+         ${GEOS_INCLUDE_DIRS}
+         ${GEOTIFF_INCLUDE_DIRS}
+@@ -52,6 +53,7 @@ target_link_libraries(${TARGET_NAME} PUBLIC
+         ${CAIRO_LIBRARY}
+         ${CHARLS_LIBRARIES}
+         ${CURL_LIBRARY}
++        ${FREETYPE_LIBRARY}
+         ${FREEXL_LIBRARY}
+         ${GEOS_LIBRARIES}
+         ${GEOTIFF_LIBRARIES}
+@@ -82,6 +84,34 @@ if(MSVC)
+ add_definitions("-DM_PI=3.14159265358979323846")
+ endif()
+ 
++if(NOT CHARLS_FOUND)
++  add_definitions(-DOMIT_CHARLS)
++endif()
++if(NOT LZMA_FOUND)
++  add_definitions(-DOMIT_LZMA)
++endif()
++if(OPENJPEG_FOUND)
++  if(OPENJPEG_VERSION_NUM GREATER_EQUAL 20100)
++    if(OPENJPEG_VERSION_NUM GREATER_EQUAL 20200)
++      if(OPENJPEG_VERSION_NUM GREATER_EQUAL 20300)
++        add_definitions(-DOPENJPEG_2_3)
++      else()
++        add_definitions(-DOPENJPEG_2_2)
++      endif()
++    else()
++      add_definitions(-DOPENJPEG_2_1)
++    endif()
++  else()
++    message(FATAL_ERROR "Unsupported openjpeg library version: ${OPENJPEG_VERSION_STRING}")
++  endif()
++else()
++  add_definitions(-DOMIT_OPENJPEG)
++endif()
++if(NOT WEBP_FOUND)
++  add_definitions(-DOMIT_WEBP)
++endif()
++
++
+ install(TARGETS ${TARGET_NAME}
+             EXPORT ${PROJECT_NAME}-depends
+             RUNTIME DESTINATION bin
+-- 
+2.16.1
+
