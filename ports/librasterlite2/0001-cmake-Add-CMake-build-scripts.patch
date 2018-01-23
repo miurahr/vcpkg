@@ -1,0 +1,711 @@
+From 5e7e63b2c663ccfd9454a167ee78c0b5be76d80c Mon Sep 17 00:00:00 2001
+From: Hiroshi Miura <miurahr@linux.com>
+Date: Fri, 30 Mar 2018 14:28:17 +0900
+Subject: [PATCH 1/2] [cmake] Add CMake build scripts
+
+- Add cmake build script set.
+- Generate project-config.cmake and project-depends.cmake
+  to support other cmake project to use this library.
+- Support optional selection of CharLS, LZMA, OpenJPEG2 and WEBP.
+- Detect OpenJPEG versions
+- Link transient dependencies and wsock for win32.
+
+Signed-off-by: Hiroshi Miura <miurahr@linux.com>
+---
+ CMakeLists.txt          |  70 +++++++++++++++++
+ cmake/FindIconv.cmake   | 204 ++++++++++++++++++++++++++++++++++++++++++++++++
+ config.h.cmake.in       |  96 +++++++++++++++++++++++
+ configure.cmake         |  52 ++++++++++++
+ project-config.cmake.in |  22 ++++++
+ src/CMakeLists.txt      | 124 +++++++++++++++++++++++++++++
+ test/CMakeLists.txt     |  30 +++++++
+ tools/CMakeLists.txt    |  27 +++++++
+ 8 files changed, 625 insertions(+)
+ create mode 100644 CMakeLists.txt
+ create mode 100644 cmake/FindIconv.cmake
+ create mode 100644 config.h.cmake.in
+ create mode 100644 configure.cmake
+ create mode 100644 project-config.cmake.in
+ create mode 100644 src/CMakeLists.txt
+ create mode 100644 test/CMakeLists.txt
+ create mode 100644 tools/CMakeLists.txt
+
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+new file mode 100644
+index 0000000..7914fc4
+--- /dev/null
++++ b/CMakeLists.txt
+@@ -0,0 +1,70 @@
++cmake_minimum_required(VERSION 3.5)
++project(librasterlite2
++        VERSION 1.0.0.1 # v1.0.0-rc0-devel1
++        LANGUAGES C)
++set(CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
++set(TARGET_NAME rasterlite2-target)
++set(LIB_NAME    rasterlite2)
++
++option(BUILD_SHARED_LIBS "Build shared library." ON)
++if(MSVC)
++    if(BUILD_SHARED_LIBS)
++        set(CL_FLAGS_DBG "/MDd /Zi")
++        set(CL_FLAGS_REL "/MD /Ox")
++    else()
++        set(CL_FLAGS_DBG "/MTd /Zi")
++        set(CL_FLAGS_REL "/MT /Ox")
++    endif()
++    set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS} /nologo ${CL_FLAGS_REL}")
++    set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} /nologo ${CL_FLAGS_DBG}")
++endif(MSVC)
++
++# Generate config.h
++include(configure.cmake)
++configure_file(${CMAKE_CURRENT_SOURCE_DIR}/config.h.cmake.in ${CMAKE_CURRENT_BINARY_DIR}/config.h)
++set(HEADER_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/headers ${CMAKE_CURRENT_BINARY_DIR})
++
++#Find system library
++find_package(Iconv REQUIRED)
++find_package(Threads REQUIRED)
++#Find mandatory dependencies
++foreach(PKG CURL GEOS GeoTiff JPEG LibXml2 Pixman PNG PROJ4 SPATIALITE SQLite3 TIFF ZLIB)
++    find_package(${PKG} CONFIG REQUIRED)
++endforeach()
++#Find optional dependencies
++foreach(PKG CAIRO CharLS Freetype FREEXL GIFLIB LZMA OpenJPEG2 WEBP)
++    find_package(${PKG} CONFIG)
++endforeach()
++
++# transitive libraries
++if(NOT BUILD_SHARED_LIBS)
++    find_package(OpenSSL CONFIG)
++    find_package(Libssh2 CONFIG)
++endif()
++# build library
++add_subdirectory(src)
++
++# test library
++if(NOT MSVC)
++enable_testing()
++add_subdirectory(test)
++endif()
++
++# build tools
++add_subdirectory(tools)
++
++include(CMakePackageConfigHelpers)
++if (NOT WIN32)
++    set (INSTALL_CMAKE_DIR "share/cmake/${PROJECT_NAME}")
++else ()
++    set (INSTALL_CMAKE_DIR "share/${PROJECT_NAME}")
++endif ()
++configure_package_config_file(cmake/project-config.cmake.in ${PROJECT_NAME}-config.cmake
++        INSTALL_DESTINATION ${INSTALL_CMAKE_DIR})
++write_basic_package_version_file(${PROJECT_NAME}-config-version.cmake
++        VERSION ${PROJECT_VERSION} COMPATIBILITY SameMajorVersion)
++install(FILES ${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}-config.cmake
++              ${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}-config-version.cmake
++        DESTINATION "${INSTALL_CMAKE_DIR}")
++install(EXPORT ${PROJECT_NAME}-depends FILE ${PROJECT_NAME}-depends.cmake
++        DESTINATION "${INSTALL_CMAKE_DIR}")
+diff --git a/cmake/FindIconv.cmake b/cmake/FindIconv.cmake
+new file mode 100644
+index 0000000..129a0c7
+--- /dev/null
++++ b/cmake/FindIconv.cmake
+@@ -0,0 +1,204 @@
++# Distributed under the OSI-approved BSD 3-Clause License.  See accompanying
++# file Copyright.txt or https://cmake.org/licensing for details.
++
++#[=======================================================================[.rst:
++FindIconv
++---------
++
++This module finds the ``iconv()`` POSIX.1 functions on the system.
++These functions might be provided in the regular C library or externally
++in the form of an additional library.
++
++The following variables are provided to indicate iconv support:
++
++.. variable:: Iconv_FOUND
++
++  Variable indicating if the iconv support was found.
++
++.. variable:: Iconv_INCLUDE_DIRS
++
++  The directories containing the iconv headers.
++
++.. variable:: Iconv_LIBRARIES
++
++  The iconv libraries to be linked.
++
++.. variable:: Iconv_IS_BUILT_IN
++
++  A variable indicating whether iconv support is stemming from the
++  C library or not. Even if the C library provides `iconv()`, the presence of
++  an external `libiconv` implementation might lead to this being false.
++
++.. variable:: ICONV_CONST
++
++  A variable indicating whether iconv second argument is "const" or not.
++  If iconv second arugment type is "const char**" then ICONV_CONST is a string "const",
++  otherwise it is "".
++
++.. variable:: ICONV_SECOND_ARGUMENT_IS_CONST
++
++  A variable indicating same as Iconv_CONST but is boolean.
++  If iconv second argument type is "const char**", it is ON(TRUE),
++  otherwise OFF(FALSE).
++
++Additionally, the following :prop_tgt:`IMPORTED` target is being provided:
++
++.. variable:: Iconv::Iconv
++
++  Imported target for using iconv.
++
++The following cache variables may also be set:
++
++.. variable:: Iconv_INCLUDE_DIR
++
++  The directory containing the iconv headers.
++
++.. variable:: Iconv_LIBRARY
++
++  The iconv library (if not implicitly given in the C library).
++
++.. note::
++  On POSIX platforms, iconv might be part of the C library and the cache
++  variables ``Iconv_INCLUDE_DIR`` and ``Iconv_LIBRARY`` might be empty.
++
++#]=======================================================================]
++
++include(CMakePushCheckState)
++if(CMAKE_C_COMPILER_LOADED)
++  include(CheckCSourceCompiles)
++elseif(CMAKE_CXX_COMPILER_LOADED)
++  include(CheckCXXSourceCompiles)
++endif()
++if(NOT CMAKE_C_COMPILER_LOADED AND NOT CMAKE_CXX_COMPILER_LOADED)
++  # If neither C nor CXX are loaded, implicit iconv makes no sense.
++  set(Iconv_IS_BUILT_IN FALSE)
++endif()
++
++# iconv can only be provided in libc on a POSIX system.
++# If any cache variable is already set, we'll skip this test.
++if(NOT DEFINED Iconv_IS_BUILT_IN)
++  if(UNIX AND NOT DEFINED Iconv_INCLUDE_DIR AND NOT DEFINED Iconv_LIBRARY)
++    cmake_push_check_state(RESET)
++    # We always suppress the message here: Otherwise on supported systems
++    # not having iconv in their C library (e.g. those using libiconv)
++    # would always display a confusing "Looking for iconv - not found" message
++    set(CMAKE_FIND_QUIETLY TRUE)
++    # The following code will not work, but it's sufficient to see if it compiles.
++    # Note: libiconv will define the iconv functions as macros, so CheckSymbolExists
++    # will not yield correct results.
++    set(Iconv_IMPLICIT_TEST_CODE
++        "
++      #include <stddef.h>
++      #include <iconv.h>
++      int main() {
++        char *a, *b;
++        size_t i, j;
++        iconv_t ic;
++        ic = iconv_open(\"to\", \"from\");
++        iconv(ic, &a, &i, &b, &j);
++        iconv_close(ic);
++      }
++      "
++        )
++    if(CMAKE_C_COMPILER_LOADED)
++      check_c_source_compiles("${Iconv_IMPLICIT_TEST_CODE}" Iconv_IS_BUILT_IN)
++    else()
++      check_cxx_source_compiles("${Iconv_IMPLICIT_TEST_CODE}" Iconv_IS_BUILT_IN)
++    endif()
++    cmake_pop_check_state()
++  else()
++    set(Iconv_IS_BUILT_IN FALSE)
++  endif()
++endif()
++
++if(NOT Iconv_IS_BUILT_IN)
++  FIND_PATH(Iconv_INCLUDE_DIR iconv.h PATHS /opt/local/include NO_DEFAULT_PATH)
++  find_path(Iconv_INCLUDE_DIR
++            NAMES "iconv.h"
++            DOC "iconv include directory")
++  set(Iconv_LIBRARY_NAMES "iconv" "libiconv")
++  FIND_LIBRARY(iconv_lib NAMES iconv libiconv NO_DEFAULT_PATH PATHS /opt/local/lib)
++else()
++  set(Iconv_INCLUDE_DIR "" CACHE FILEPATH "iconv include directory")
++  set(Iconv_LIBRARY_NAMES "c")
++endif()
++
++find_library(Iconv_LIBRARY
++             NAMES ${Iconv_LIBRARY_NAMES}
++             DOC "iconv library (potentially the C library)")
++
++mark_as_advanced(Iconv_INCLUDE_DIR)
++mark_as_advanced(Iconv_LIBRARY)
++
++include(FindPackageHandleStandardArgs)
++if(NOT Iconv_IS_BUILT_IN)
++  find_package_handle_standard_args(Iconv REQUIRED_VARS Iconv_LIBRARY Iconv_INCLUDE_DIR)
++else()
++  find_package_handle_standard_args(Iconv REQUIRED_VARS Iconv_LIBRARY)
++endif()
++
++IF(Iconv_FOUND)
++  set (CMAKE_C_FLAGS_BACKUP "${CMAKE_C_FLAGS}")
++  set (CMAKE_CXX_FLAGS_BACKUP "${CMAKE_CXX_FLAGS}")
++  if(MSVC)
++      set(CMAKE_C_FLAGS "${CMKAE_C_FLAGS} /WX")
++      set(CMAKE_CXX_FLAGS "${CMKAE_CXX_FLAGS} /WX")
++  else()
++      include(CheckCCompilerFlag)
++      check_c_compiler_flag("-Werror" ICONV_HAVE_WERROR)
++      if(ICONV_HAVE_WERROR)
++          set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Werror")
++          set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Werror")
++      endif(ICONV_HAVE_WERROR)
++  endif()
++  set(CMAKE_REQUIRED_INCLUDES ${Iconv_INCLUDE_DIR})
++  set(CMAKE_REQUIRED_LIBRARIES ${Iconv_LIBRARY})
++  set(ICONV_CONST_TEST_CODE "#include <stdlib.h>
++    #include <iconv.h>
++    #ifdef __cplusplus
++    extern \"C\"
++    #endif
++
++    int main(){
++    #if defined(__STDC__) || defined(__cplusplus)
++      iconv_t conv = 0;
++      char* in = 0;
++      size_t ilen = 0;
++      char* out = 0;
++      size_t olen = 0;
++      size_t ret = iconv(conv, &in, &ilen, &out, &olen);
++    #else
++      size_t ret = iconv();
++    #endif
++      return 0;
++    }")
++  if(CMAKE_C_COMPILER_LOADED)
++    check_c_source_compiles("${ICONV_CONST_TEST_CODE}"
++                            _ICONV_SECOND_ARGUMENT_IS_NOT_CONST)
++  elseif(CMAKE_CXX_COMPILER_LOADED)
++    check_cxx_source_compiles("${ICONV_CONST_TEST_CODE}"
++                              _ICONV_SECOND_ARGUMENT_IS_NOT_CONST)
++  endif()
++  set(CMAKE_REQUIRED_INCLUDES)
++  set(CMAKE_REQUIRED_LIBRARIES)
++  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS_BACKUP}")
++  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS_BACKUP}")
++  if(_ICONV_SECOND_ARGUMENT_IS_NOT_CONST)
++    set(ICONV_CONST "")
++    set(ICONV_CPP_CONST "")
++    set(ICONV_SECOND_ARGUMENT_IS_CONST OFF)
++  else()
++    set(ICONV_CONST "const")
++    set(ICONV_CPP_CONST "const")
++    set(ICONV_SECOND_ARGUMENT_IS_CONST ON)
++  endif()
++  unset(_ICONV_SECOND_ARGUMENT_IS_NOT_CONST)
++
++  set(Iconv_INCLUDE_DIRS "${Iconv_INCLUDE_DIR}")
++  set(Iconv_LIBRARIES "${Iconv_LIBRARY}")
++  if(NOT TARGET Iconv::Iconv)
++    add_library(Iconv::Iconv INTERFACE IMPORTED)
++  endif()
++  set_property(TARGET Iconv::Iconv PROPERTY INTERFACE_INCLUDE_DIRECTORIES "${Iconv_INCLUDE_DIRS}")
++  set_property(TARGET Iconv::Iconv PROPERTY INTERFACE_LINK_LIBRARIES "${Iconv_LIBRARIES}")
++endif()
+diff --git a/config.h.cmake.in b/config.h.cmake.in
+new file mode 100644
+index 0000000..599a768
+--- /dev/null
++++ b/config.h.cmake.in
+@@ -0,0 +1,96 @@
++/* config.h.cmake.in derived from config.h.in  */
++
++/* Define to 1 if you have the <dlfcn.h> header file. */
++#cmakedefine HAVE_DLFCN_H
++
++/* Define to 1 if you have the <float.h> header file. */
++#cmakedefine HAVE_FLOAT_H
++
++/* Define to 1 if you have the <libgeotiff/geotiff.h> header file. */
++#cmakedefine HAVE_LIBGEOTIFF_GEOTIFF_H
++
++/* Define to 1 if you have the <geotiff/geotiff.h> header file. */
++#cmakedefine HAVE_GEOTIFF_GEOTIFF_H
++
++/* Define to 1 if you have the <geotiff.h> header file. */
++#cmakedefine HAVE_GEOTIFF_H
++
++/* Define to 1 if you have the <gif_lib.h> header file. */
++#cmakedefine HAVE_GIF_LIB_H
++
++/* Define to 1 if you have the <inttypes.h> header file. */
++#cmakedefine HAVE_INTTYPES_H
++
++/* Define to 1 if you have the <jerror.h> header file. */
++#cmakedefine HAVE_JERROR_H
++
++/* Define to 1 if you have the <jpeglib.h> header file. */
++#cmakedefine HAVE_JPEGLIB_H
++
++/* Define to 1 if you have the <lzma.h> header file. */
++#cmakedefine HAVE_LZMA_H
++
++/* Define to 1 if you have the <math.h> header file. */
++#cmakedefine HAVE_MATH_H
++
++/* Define to 1 if you have the <memory.h> header file. */
++#cmakedefine HAVE_MEMORY_H
++
++/* Define to 1 if you have the <openjpeg-2.0/openjpeg.h> header file. */
++#cmakedefine HAVE_OPENJPEG_2_0_OPENJPEG_H
++
++/* Define to 1 if you have the <openjpeg-2.1/openjpeg.h> header file. */
++#cmakedefine HAVE_OPENJPEG_2_1_OPENJPEG_H
++
++/* Define to 1 if you have the <png.h> header file. */
++#cmakedefine HAVE_PNG_H
++
++/* Define to 1 if you have the `sqrt' function. */
++#cmakedefine HAVE_SQRT
++
++/* Define to 1 if you have the <stdint.h> header file. */
++#cmakedefine HAVE_STDINT_H
++
++/* Define to 1 if you have the <stdio.h> header file. */
++#cmakedefine HAVE_STDIO_H
++
++/* Define to 1 if you have the <stdlib.h> header file. */
++#cmakedefine HAVE_STDLIB_H
++
++/* Define to 1 if you have the `strcasecmp' function. */
++#cmakedefine HAVE_STRCASECMP
++
++/* Define to 1 if you have the `strerror' function. */
++#cmakedefine HAVE_STRERROR
++
++/* Define to 1 if you have the `strftime' function. */
++#cmakedefine HAVE_STRFTIME
++
++/* Define to 1 if you have the <strings.h> header file. */
++#cmakedefine HAVE_STRINGS_H
++
++/* Define to 1 if you have the <string.h> header file. */
++#cmakedefine HAVE_STRING_H
++
++/* Define to 1 if you have the `strncasecmp' function. */
++#cmakedefine HAVE_STRNCASECMP
++
++/* Define to 1 if you have the `strstr' function. */
++#cmakedefine HAVE_STRSTR
++
++/* Define to 1 if you have the <sys/stat.h> header file. */
++#cmakedefine HAVE_SYS_STAT_H
++
++/* Define to 1 if you have the <sys/types.h> header file. */
++#cmakedefine HAVE_SYS_TYPES_H
++
++/* Define to 1 if you have the <unistd.h> header file. */
++#cmakedefine HAVE_UNISTD_H
++
++/* Define to 1 if you have the <zlib.h> header file. */
++#cmakedefine HAVE_ZLIB_H
++
++#ifdef _MSC_VER 
++#define strncasecmp _strnicmp
++#define strcasecmp _stricmp
++#endif
+\ No newline at end of file
+diff --git a/configure.cmake b/configure.cmake
+new file mode 100644
+index 0000000..77c3ba2
+--- /dev/null
++++ b/configure.cmake
+@@ -0,0 +1,52 @@
++
++# Include all the necessary files for macros
++include (CheckFunctionExists)
++include (CheckIncludeFile)
++include (CheckIncludeFiles)
++include (CheckLibraryExists)
++include (CheckSymbolExists)
++include (CheckTypeSize)
++include (TestBigEndian)
++include (CheckCSourceCompiles)
++
++check_function_exists(vsnprintf HAVE_VSNPRINTF)
++check_function_exists(snprintf HAVE_SNPRINTF)
++check_function_exists(getcwd HAVE_GETCWD)
++check_function_exists(sqrt HAVE_SQRT)
++
++check_include_file("dlfch.h" HAVE_DLFCH_H)
++check_include_file("float.h" HAVE_FLOAT_H)
++
++check_include_file("geotiff/geotiff.h" HAVE_GEOTIFF_GEOTIFF_H)
++check_include_file("geotiff.h" HAVE_GEOTIFF_H)
++check_include_file("gif_lib.h" HAVE_GIF_LIB_H)
++check_include_file("openjpeg-2.0/openjpeg.h" HAVE_OPENJPEG_2_0_OPENJPEG_H)
++check_include_file("openjpeg-2.1/openjpeg.h" HAVE_OPENJPEG_2_1_OPENJPEG_H)
++check_include_file("openjpeg-2.2/openjpeg.h" HAVE_OPENJPEG_2_2_OPENJPEG_H)
++check_include_file("openjpeg-2.3/openjpeg.h" HAVE_OPENJPEG_2_3_OPENJPEG_H)
++
++check_include_file("inttypes.h" HAVE_INTTYPES_H)
++check_include_file("jerror.h" HAVE_JERROR_H)
++check_include_file("jpeglib.h" HAVE_JPEGLIB_H)
++check_include_file("lzma.h" HAVE_LZMA_H)
++check_include_file("math.h" HAVE_MATH_H)
++check_include_file("memory.h" HAVE_MEMORY_H)
++check_include_file("png.h" HAVE_PNG_H)
++check_include_file("stdint.h" HAVE_STDINT_H)
++check_include_file("stdio.h" HAVE_STDIO_H)
++check_include_file("stdlib.h" HAVE_STDLIB_H)
++
++check_function_exists(strcasecmp HAVE_STRCASECMP)
++check_function_exists(strerror HAVE_STRERROR)
++check_function_exists(strftime HAVE_STRFTIME)
++
++check_include_file("strings.h" HAVE_STRINGS_H)
++check_include_file("string.h" HAVE_STRING_H)
++
++check_function_exists(strncasecmp HAVE_STRNCASECMP)
++check_function_exists(strstr HAVE_STRSTR)
++
++check_include_file("sys/stat.h" HAVE_SYS_STAT_H)
++check_include_file("sys/types.h" HAVE_SYS_TYPES_H)
++check_include_file("sys/unistd.h" HAVE_SYS_UNISTD_H)
++check_include_file("zlib.h" HAVE_ZLIB_H)
+diff --git a/project-config.cmake.in b/project-config.cmake.in
+new file mode 100644
+index 0000000..91e69f4
+--- /dev/null
++++ b/project-config.cmake.in
+@@ -0,0 +1,22 @@
++# Configure @PROJECT_NAME@
++#
++# Set such as
++#  @PROJECT_NAME_UPPER@_FOUND = 1
++#  @PROJECT_NAME_UPPER@_INCLUDE_DIRS = /usr/local/include
++#  @PROJECT_NAME_UPPER@_LIBRARIES = @PROJECT_NAME@_library
++#  @PROJECT_NAME_UPPER@_LIBRARY_DIRS = /usr/local/lib
++#  @PROJECT_NAME_UPPER@_BINARY_DIRS = /usr/local/bin
++#  @PROJECT_NAME_UPPER@_VERSION = 1.4.1 (for example)
++
++message (STATUS "Reading ${CMAKE_CURRENT_LIST_FILE}")
++get_filename_component (_DIR ${CMAKE_CURRENT_LIST_FILE} PATH)
++get_filename_component (_ROOT "${_DIR}/@PROJECT_ROOT_DIR@" ABSOLUTE)
++set (@PROJECT_NAME_UPPER@_FOUND 1)
++set (@PROJECT_NAME_UPPER@_INCLUDE_DIRS "${_ROOT}/include")
++set (@PROJECT_NAME_UPPER@_LIBRARY_DIRS "${_ROOT}/lib")
++set (@PROJECT_NAME_UPPER@_BINARY_DIRS "${_ROOT}/bin")
++set (@PROJECT_NAME_UPPER@_LIBRARIES @TARGET_LIB_NAME@)
++# Read in the exported definition of the library
++include ("${_DIR}/@PROJECT_NAME_LOWER@-depends.cmake")
++unset (_ROOT)
++unset (_DIR)
+diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
+new file mode 100644
+index 0000000..5814777
+--- /dev/null
++++ b/src/CMakeLists.txt
+@@ -0,0 +1,124 @@
++if (MSVC OR CMAKE_CONFIGURATION_TYPES)
++  # For multi-config systems and for Visual Studio, the debug versions
++  # of the libraries have a _d suffix.
++  set (CMAKE_DEBUG_POSTFIX _d)
++endif ()
++if(MSVC)
++  set(EXPORT_SYMBOL DLL_EXPORT)
++else()
++  set(EXPORT_SYMBOL EXPORT)
++endif()
++
++file(GLOB C_SOURCES *.c)
++add_library(${TARGET_NAME} ${C_SOURCES})
++if(BUILD_SHARED_LIBS)
++    set_target_properties(${TARGET_NAME} PROPERTIES
++        OUTPUT_NAME "${LIB_NAME}"
++        SOVERSION ${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}
++        VERSION   ${PROJECT_VERSION}
++        CLEAN_DIRECT_OUTPUT 1
++        DEFINE_SYMBOL ${EXPORT_SYMBOL})
++else()
++    set_target_properties(${TARGET_NAME} PROPERTIES
++        OUTPUT_NAME "${LIB_NAME}"
++        VERSION   ${PROJECT_VERSION}
++        CLEAN_DIRECT_OUTPUT 1)
++endif()
++target_include_directories(${TARGET_NAME}
++      PRIVATE
++        ${HEADER_DIRS}
++      PUBLIC
++        ${CAIRO_INCLUDE_DIR}
++        ${CHARLS_INCLUDE_DIRS}
++        ${CURL_INCLUDE_DIRS}
++        ${FREETYPE_INCLUDE_DIRS}
++        ${FREEXL_INCLUDE_DIR}
++        ${GEOS_INCLUDE_DIRS}
++        ${GEOTIFF_INCLUDE_DIRS}
++        ${GIFLIB_INCLUDE_DIR}
++        ${JPEG_INCLUDE_DIR}
++        ${LIBXML2_INCLUDE_DIR}
++        ${LZMA_INCLUDE_DIR}
++        ${OPENJPEG_INCLUDE_DIR}
++        ${PIXMAN_INCLUDE_DIRS}
++        ${PNG_INCLUDE_DIRS}
++        ${PROJ4_INCLUDE_DIRS}
++        ${SPATIALITE_INCLUDE_DIRS}
++        ${SQLITE3_INCLUDE_DIRS}
++        ${TIFF_INCLUDE_DIRS}
++        ${WEBP_INCLUDE_DIRS}
++        ${ZLIB_INCLUDE_DIRS})
++target_link_libraries(${TARGET_NAME} PUBLIC
++        ${TIFF_LIBRARIES}
++        ${CAIRO_LIBRARY}
++        ${CURL_LIBRARY}
++        ${FREETYPE_LIBRARY}
++        ${FREEXL_LIBRARY}
++        ${GEOS_LIBRARIES}
++        ${GEOTIFF_LIBRARIES}
++        ${GIFLIB_LIBRARY}
++        ${JPEG_LIBRARIES}
++        ${LIBXML2_LIBRARIES}
++        ${PNG_LIBRARIES}
++        ${PIXMAN_LIBRARIES}
++        ${PROJ4_LIBRARIES}
++        ${SQLITE3_LIBRARIES}
++        ${SPATIALITE_LIBRARIES}
++        ${ZLIB_LIBRARIES})
++
++find_package(Iconv)
++if(ICONV_FOUND)
++  if(NOT Iconv_IS_BUILT_IN)
++    target_include_directories(${TARGET_NAME} PRIVATE ${Iconv_INCLUDE_DIR})
++    target_link_libraries(${TARGET_NAME} PRIVATE ${Iconv_LIBRARY})
++  endif()
++endif()
++
++target_compile_definitions(${TARGET_NAME} PRIVATE "-DVERSION=\"${PROJECT_VERSION}\"")
++target_compile_definitions(${TARGET_NAME} PRIVATE "-DTARGET_CPU=\"${CMAKE_SYSTEM_PROCESSOR}\"")
++if(MSVC)
++  target_compile_definitions(${TARGET_NAME} PRIVATE "-DM_PI=3.14159265358979323846")
++endif()
++
++if(CHARLS_FOUND AND CHARLS_VERSION EQUAL 1)
++  target_link_libraries(${TARGET_NAME} PUBLIC ${CHARLS_LIBRARIES})
++else()
++  target_compile_definitions(${TARGET_NAME} PRIVATE -DOMIT_CHARLS)
++endif()
++if(LZMA_FOUND)
++  target_link_libraries(${TARGET_NAME} PUBLIC ${LZMA_LIBRARY})
++else()
++  target_compile_definitions(${TARGET_NAME} PRIVATE -DOMIT_LZMA)
++endif()
++if(OPENJPEG_FOUND)
++  target_link_libraries(${TARGET_NAME} PUBLIC ${OPENJPEG_LIBRARIES})
++  if(OPENJPEG_VERSION_NUM GREATER_EQUAL 20100)
++    if(OPENJPEG_VERSION_NUM GREATER_EQUAL 20200)
++      if(OPENJPEG_VERSION_NUM GREATER_EQUAL 20300)
++        add_definitions(-DOPENJPEG_2_3)
++      else()
++        add_definitions(-DOPENJPEG_2_2)
++      endif()
++    else()
++      add_definitions(-DOPENJPEG_2_1)
++    endif()
++  else()
++    message(FATAL_ERROR "Unsupported openjpeg library version: ${OPENJPEG_VERSION_STRING}")
++  endif()
++else()
++  target_compile_definitions(${TARGET_NAME} PRIVATE -DOMIT_OPENJPEG)
++endif()
++if(WEBP_FOUND)
++  target_link_libraries(${TARGET_NAME} PUBLIC ${WEBP_LIBRARY})
++else()
++  target_compile_definitions(${TARGET_NAME} PRIVATE -DOMIT_WEBP)
++endif()
++
++
++install(TARGETS ${TARGET_NAME}
++            EXPORT ${PROJECT_NAME}-depends
++            RUNTIME DESTINATION bin
++            LIBRARY DESTINATION lib
++            ARCHIVE DESTINATION lib)
++install(DIRECTORY ${CMAKE_SOURCE_DIR}/headers/rasterlite2
++            DESTINATION include)
+diff --git a/test/CMakeLists.txt b/test/CMakeLists.txt
+new file mode 100644
+index 0000000..3119fe6
+--- /dev/null
++++ b/test/CMakeLists.txt
+@@ -0,0 +1,30 @@
++
++set(TEST_COMMANDS)
++file(GLOB TESTCASE test*.c)
++foreach(TESTF IN LISTS TESTCASE)
++    get_filename_component(TESTNAME ${TESTF} NAME_WE)
++    add_executable(${TESTNAME} ${TESTF})
++    target_include_directories(${TESTNAME} PRIVATE ${HEADER_DIRS}
++        ${LIBXML2_INCLUDE_DIR}
++        ${SQLITE3_INCLUDE_DIRS}
++        ${SPATIALITE_INCLUDE_DIRS})
++    target_link_libraries(${TESTNAME} PRIVATE  $<TARGET_NAME:${TARGET_NAME}>
++        ${LIBXML2_LIBRARIES}
++        ${SQLITE3_LIBRARIES}
++        ${SPATIALITE_LIBRARIES}
++        Threads::Threads
++        -lm)
++    if(WIN32)
++        target_link_libraries(${TESTNAME} PRIVATE wsock32 ws2_32)
++    endif()
++    add_test(NAME ${TESTNAME} COMMAND ${TESTNAME})
++    list(APPEND TEST_COMMANDS ${TESTNAME})
++endforeach()
++
++add_definitions(-DHAVE_CONFIG_H)
++
++# copy test data to build dir
++file(GLOB TEST_DATA *.gif *.jp2 *.jpg *.png *.sqlite *.svg *.tif *.ttf *.webp *.xml)
++file(COPY ${TEST_DATA} map_samples sql_stmt_security_tests sql_stmt_tests
++     DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
++add_custom_target(tests COMMAND ${CMAKE_CTEST_COMMAND} DEPENDS ${TEST_COMMANDS})
+\ No newline at end of file
+diff --git a/tools/CMakeLists.txt b/tools/CMakeLists.txt
+new file mode 100644
+index 0000000..e5b8e0c
+--- /dev/null
++++ b/tools/CMakeLists.txt
+@@ -0,0 +1,27 @@
++if(MSVC)
++    set(UTIL_TARGET rl2tool)
++else()
++    set(UTIL_TARGET rl2tool wmslite)
++endif()
++foreach(UTILNAME IN LISTS UTIL_TARGET)
++    add_executable(${UTILNAME} ${UTILNAME}.c)
++    target_include_directories(${UTILNAME} PRIVATE ${HEADER_DIRS}
++        ${SPATIALITE_INCLUDE_DIRS}
++        ${SQLITE3_INCLUDE_DIRS})
++    target_link_libraries(${UTILNAME} PRIVATE $<TARGET_NAME:${TARGET_NAME}>
++        ${SPATIALITE_LIBRARIES}
++        ${SQLITE3_LIBRARIES}
++        Threads::Threads
++        -lm)
++    if(NOT BUILD_SHARED_LIBS)
++        # transient libraries
++        target_link_libraries(${UTILNAME} PRIVATE ${OPENSSL_LIBRARIES} ${Libssh2_LIBRARY})
++        if(WIN32)
++            target_link_libraries(${UTILNAME} PRIVATE wsock32 ws2_32)
++        endif()
++    endif()
++endforeach()
++install (TARGETS ${UTIL_TARGET}
++            RUNTIME DESTINATION bin
++            LIBRARY DESTINATION lib
++            ARCHIVE DESTINATION lib)
+\ No newline at end of file
+-- 
+2.16.2
+
