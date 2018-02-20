@@ -18,6 +18,7 @@ vcpkg_apply_patches(
         ${CMAKE_CURRENT_LIST_DIR}/0005-cmake-Update-dependencies.patch
         ${CMAKE_CURRENT_LIST_DIR}/0006-cmake-bump-version-1.0.0.1.patch
         ${CMAKE_CURRENT_LIST_DIR}/0007-cmake-OMIT-CHARLS-2.0-and-some-refactoring.patch
+        ${CMAKE_CURRENT_LIST_DIR}/0008-win32-fix-include-unistd.h.patch
 )
 
 if (VCPKG_CRT_LINKAGE STREQUAL static)

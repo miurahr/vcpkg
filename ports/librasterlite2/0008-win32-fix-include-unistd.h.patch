@@ -1,0 +1,33 @@
+From 17e6d1575506867aa79a1457f98193b01933ddd6 Mon Sep 17 00:00:00 2001
+From: Hiroshi Miura <miurahr@linux.com>
+Date: Wed, 21 Feb 2018 07:09:25 +0900
+Subject: [PATCH 8/8] [win32] fix include unistd.h
+
+Signed-off-by: Hiroshi Miura <miurahr@linux.com>
+---
+ src/rl2import.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/src/rl2import.c b/src/rl2import.c
+index 7694e7b..ea80559 100644
+--- a/src/rl2import.c
++++ b/src/rl2import.c
+@@ -41,7 +41,6 @@ the terms of any one of the MPL, the GPL or the LGPL.
+  
+ */
+ 
+-#include <unistd.h>
+ #include <stdlib.h>
+ #include <stdio.h>
+ #include <string.h>
+@@ -66,6 +65,7 @@ the terms of any one of the MPL, the GPL or the LGPL.
+ #include <windows.h>
+ #include <process.h>
+ #else
++#include <unistd.h>
+ #include <pthread.h>
+ #endif
+ 
+-- 
+2.16.1
+
