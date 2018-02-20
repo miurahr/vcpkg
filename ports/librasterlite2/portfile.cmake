@@ -17,6 +17,7 @@ vcpkg_apply_patches(
         ${CMAKE_CURRENT_LIST_DIR}/0004-cmake-Generate-project-config.cmake.patch
         ${CMAKE_CURRENT_LIST_DIR}/0005-cmake-Update-dependencies.patch
         ${CMAKE_CURRENT_LIST_DIR}/0006-cmake-bump-version-1.0.0.1.patch
+        ${CMAKE_CURRENT_LIST_DIR}/0007-cmake-OMIT-CHARLS-2.0-and-some-refactoring.patch
 )
 
 if (VCPKG_CRT_LINKAGE STREQUAL static)
