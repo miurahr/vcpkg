@@ -1,0 +1,25 @@
+From 35971653e97c40da2dc2803eec6e9265c2b50ae4 Mon Sep 17 00:00:00 2001
+From: Hiroshi Miura <miurahr@linux.com>
+Date: Wed, 21 Feb 2018 13:02:35 +0900
+Subject: [PATCH 2/2] [win32] fix syntax error
+
+Signed-off-by: Hiroshi Miura <miurahr@linux.com>
+---
+ src/rl2import.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/src/rl2import.c b/src/rl2import.c
+index 296c39c..92ad684 100644
+--- a/src/rl2import.c
++++ b/src/rl2import.c
+@@ -2593,6 +2593,7 @@ do_import_dir (sqlite3 * handle, int max_threads, const char *dir_path,
+ 	    }
+ 	  sqlite3_free (search);
+ 	  return cnt;
++	  }
+ #else
+ /* not Visual Studio .NET */
+     int cnt = 0;
+-- 
+2.16.1
+

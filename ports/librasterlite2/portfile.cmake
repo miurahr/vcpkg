@@ -20,6 +20,8 @@ vcpkg_apply_patches(
         ${CMAKE_CURRENT_LIST_DIR}/0007-cmake-OMIT-CHARLS-2.0-and-some-refactoring.patch
         ${CMAKE_CURRENT_LIST_DIR}/0008-win32-fix-include-unistd.h.patch
         ${CMAKE_CURRENT_LIST_DIR}/0009-libopenjpeg-Update-configure-scripts.patch
+        ${CMAKE_CURRENT_LIST_DIR}/0010-win32-fix-syntax-error.patch
+        ${CMAKE_CURRENT_LIST_DIR}/0011-cmake-Fix-config.cmake-installation.patch
 )
 
 if (VCPKG_CRT_LINKAGE STREQUAL static)
