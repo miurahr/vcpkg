@@ -1,0 +1,72 @@
+From 089b2ac7de127ba69e921db350343a18dc0ce87c Mon Sep 17 00:00:00 2001
+From: Hiroshi Miura <miurahr@linux.com>
+Date: Thu, 22 Feb 2018 09:22:55 +0900
+Subject: [PATCH 10/11] [cmake][win32] link transient dependencies and wsock
+
+Signed-off-by: Hiroshi Miura <miurahr@linux.com>
+---
+ CMakeLists.txt       |  7 +++++++
+ test/CMakeLists.txt  |  7 ++++++-
+ tools/CMakeLists.txt | 10 +++++++++-
+ 3 files changed, 22 insertions(+), 2 deletions(-)
+
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 8c42907..3cc6a56 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -57,6 +57,13 @@ find_package(WEBP)
+ find_package(ZLIB REQUIRED)
+ find_package(Threads)
+ 
++# transitive libraries
++if(NOT BUILD_SHARED_LIBS)
++    find_package(OpenSSL)
++    find_package(Libssh2 CONFIG)
++    # Libssh2Config.cmake may not exist on linux
++    local_find_package(Libssh2 "libssh2.h" "ssh2")
++endif()
+ # build library
+ add_subdirectory(src)
+ 
+diff --git a/test/CMakeLists.txt b/test/CMakeLists.txt
+index 5ffcbe1..9a9d0af 100644
+--- a/test/CMakeLists.txt
++++ b/test/CMakeLists.txt
+@@ -11,7 +11,12 @@ foreach(TESTF IN LISTS TESTCASE)
+     target_link_libraries(${TESTNAME} PRIVATE  $<TARGET_NAME:${TARGET_NAME}>
+         ${LIBXML2_LIBRARIES}
+         ${SQLITE3_LIBRARIES}
+-        ${SPATIALITE_LIBRARIES})
++        ${SPATIALITE_LIBRARIES}
++        Threads::Threads
++        -lm)
++    if(WIN32)
++        target_link_libraries(${TESTNAME} wsock32 ws2_32)
++    endif()
+     add_test(NAME ${TESTNAME} COMMAND ${TESTNAME})
+     list(APPEND TEST_COMMANDS ${TESTNAME})
+ endforeach()
+diff --git a/tools/CMakeLists.txt b/tools/CMakeLists.txt
+index 207ada2..6f2e7b2 100644
+--- a/tools/CMakeLists.txt
++++ b/tools/CMakeLists.txt
+@@ -11,7 +11,15 @@ foreach(UTILNAME IN LISTS UTIL_TARGET)
+     target_link_libraries(${UTILNAME} PRIVATE $<TARGET_NAME:${TARGET_NAME}>
+         ${SPATIALITE_LIBRARIES}
+         ${SQLITE3_LIBRARIES}
+-        Threads::Threads)
++        Threads::Threads
++        -lm)
++    if(NOT BUILD_SHARED_LIBS)
++        # transient libraries
++        target_link_libraries(${UTILNAME} PRIVATE ${OPENSSL_LIBRARIES} ${Libssh2_LIBRARY})
++        if(WIN32)
++            target_link_libraries(${UTILNAME} wsock32 ws2_32)
++        endif()
++    endif()
+ endforeach()
+ install (TARGETS ${UTIL_TARGET}
+             RUNTIME DESTINATION bin
+-- 
+2.16.1
+

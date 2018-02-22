@@ -1,4 +1,4 @@
 Source: librasterlite2
 Version: 1.0.0-rc0
 Description: librasterlite2 is an open source library that stores and retrieves huge raster coverages using a SpatiaLite DBMS.
-Build-Depends: zlib, giflib, libxml2, libspatialite, sqlite3, geos, proj4, freexl, libiconv, libgeotiff, libwebp, liblzma, libpng, cairo, curl, tiff, libjpeg-turbo, charls, openjpeg
+Build-Depends: zlib, giflib, libxml2, libspatialite, sqlite3, geos, proj4, freexl, libiconv, libgeotiff, libwebp, liblzma, libpng, cairo, curl, tiff, libjpeg-turbo, charls, openjpeg, openssl, libssh2
