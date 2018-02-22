@@ -1,0 +1,28 @@
+From ae4a4b5311c40eef08025a539b41fd9475988f96 Mon Sep 17 00:00:00 2001
+From: Hiroshi Miura <miurahr@linux.com>
+Date: Thu, 22 Feb 2018 09:41:36 +0900
+Subject: [PATCH 12/12] [cmake] fix to find libgeos on windows
+
+Signed-off-by: Hiroshi Miura <miurahr@linux.com>
+---
+ cmake/FindGEOS.cmake | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/cmake/FindGEOS.cmake b/cmake/FindGEOS.cmake
+index 81b1093..d90a1d8 100644
+--- a/cmake/FindGEOS.cmake
++++ b/cmake/FindGEOS.cmake
+@@ -59,7 +59,9 @@ FIND_PATH(GEOS_INCLUDE_DIR
+ FIND_LIBRARY(GEOS_LIBRARY
+              NAMES geos_c
+              HINTS ${GEOS_PREFIX}/lib)
+-
++# Try to find on windows
++FIND_LIBRARY(GEOS_LIBRARY
++             NAMES libgeos_c)
+ mark_as_advanced(GEOS_INCLUDE_DIR GEOS_LIBRARY)
+ 
+ include(FindPackageHandleStandardArgs)
+-- 
+2.16.1
+
