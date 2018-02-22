@@ -24,6 +24,7 @@ vcpkg_apply_patches(
         ${CMAKE_CURRENT_LIST_DIR}/0011-cmake-Fix-config.cmake-installation.patch
         ${CMAKE_CURRENT_LIST_DIR}/0012-cmake-win32-link-transitive-dependencies-and-wsock.patch
         ${CMAKE_CURRENT_LIST_DIR}/0013-cmake-use-target_compile_definisions.patch
+        ${CMAKE_CURRENT_LIST_DIR}/0014-cmake-fix-find-libgeos-on-windows.patch
 )
 
 if (VCPKG_CRT_LINKAGE STREQUAL static)
