@@ -17,9 +17,9 @@ environment:
     - VCPKG_DEFAULT_TRIPLET: x64-windows-static
 
 cache:
-  - downloads
-  - installed
-  - packages
+  - c:\projects\vcpkg\downloads
+  - c:\projects\vcpkg\installed -> appveyor.yml
+  - c:\projects\vcpkg\packages -> appveyor.yml
 
 # Help developer to investigate windows build using RDP to AppVeyor.
 # see https://www.appveyor.com/docs/how-to/rdp-to-build-worker/
