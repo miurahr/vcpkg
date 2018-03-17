@@ -15,6 +15,10 @@ environment:
     - VCPKG_DEFAULT_TRIPLET: x64-windows-static
     - VCPKG_DEFAULT_TRIPLET: arm-uwp
 
+branches:
+  except:
+    - master
+
 cache:
   - archives
 
@@ -40,3 +44,4 @@ deploy: off
 artifacts:
   - path: '*.zip'
   - path: '*.7z'
+
