@@ -40,3 +40,4 @@ file(RENAME ${CURRENT_PACKAGES_DIR}/share/bzip2/LICENSE ${CURRENT_PACKAGES_DIR}/
 file(COPY ${CMAKE_CURRENT_LIST_DIR}/usage DESTINATION ${CURRENT_PACKAGES_DIR}/share/${PORT})
 
 vcpkg_test_cmake(PACKAGE_NAME "Bzip2")
+vcpkg_test_msbuild(INCLUDE_FILE "bzlib.h" INCLUDE_DIR "include" LIBRARIES "bzip2")
