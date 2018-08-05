@@ -40,9 +40,13 @@ vcpkg_configure_cmake(
 
 vcpkg_install_cmake()
 
-if(VCPKG_LIBRARY_LINKAGE STREQUAL "static" AND EXISTS ${CURRENT_PACKAGES_DIR}/lib/libpng16_static.lib)
-    file(RENAME ${CURRENT_PACKAGES_DIR}/lib/libpng16_static.lib ${CURRENT_PACKAGES_DIR}/lib/libpng16.lib)
-    file(RENAME ${CURRENT_PACKAGES_DIR}/debug/lib/libpng16_staticd.lib ${CURRENT_PACKAGES_DIR}/debug/lib/libpng16d.lib)
+if(VCPKG_LIBRARY_LINKAGE STREQUAL "static")
+    if(EXISTS ${CURRENT_PACKAGES_DIR}/lib/libpng16_static.lib)
+        file(RENAME ${CURRENT_PACKAGES_DIR}/lib/libpng16_static.lib ${CURRENT_PACKAGES_DIR}/lib/libpng16.lib)
+    endif()
+    if(EXISTS ${CURRENT_PACKAGES_DIR}/debug/lib/libpng16_staticd.lib)
+        file(RENAME ${CURRENT_PACKAGES_DIR}/debug/lib/libpng16_staticd.lib ${CURRENT_PACKAGES_DIR}/debug/lib/libpng16d.lib)
+    endif()
 endif()
 
 # Remove CMake config files as they are incorrectly generated and everyone uses built-in FindPNG anyway.
@@ -53,3 +57,7 @@ file(RENAME ${CURRENT_PACKAGES_DIR}/share/libpng/LICENSE ${CURRENT_PACKAGES_DIR}
 vcpkg_copy_pdbs()
 
 file(COPY ${CMAKE_CURRENT_LIST_DIR}/usage DESTINATION ${CURRENT_PACKAGES_DIR}/share/${PORT})
+
+if(VCPKG_CMAKE_SYSTEM_NAME AND NOT VCPKG_CMAKE_SYSTEM_NAME STREQUAL "WindowsStore")
+    file(COPY ${CMAKE_CURRENT_LIST_DIR}/vcpkg-cmake-wrapper.cmake DESTINATION ${CURRENT_PACKAGES_DIR}/share/png)
+endif()

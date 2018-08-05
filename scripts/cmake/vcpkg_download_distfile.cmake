@@ -81,9 +81,8 @@ function(vcpkg_download_distfile VAR)
             return()
         endif()
 
-        message(STATUS "Testing integrity of ${FILE_KIND}...")
         file(SHA512 ${FILE_PATH} FILE_HASH)
-        if(NOT "${FILE_HASH}" STREQUAL "${vcpkg_download_distfile_SHA512}")
+        if(NOT FILE_HASH STREQUAL vcpkg_download_distfile_SHA512)
             message(FATAL_ERROR
                 "\nFile does not have expected hash:\n"
                 "        File path: [ ${FILE_PATH} ]\n"
@@ -91,10 +90,9 @@ function(vcpkg_download_distfile VAR)
                 "      Actual hash: [ ${FILE_HASH} ]\n"
                 "${CUSTOM_ERROR_ADVICE}\n")
         endif()
-        message(STATUS "Testing integrity of ${FILE_KIND}... OK")
     endfunction()
 
-    if(EXISTS ${downloaded_file_path})
+    if(EXISTS "${downloaded_file_path}")
         message(STATUS "Using cached ${downloaded_file_path}")
         test_hash("${downloaded_file_path}" "cached file" "Please delete the file and retry if this file should be downloaded again.")
     else()
@@ -103,19 +101,51 @@ function(vcpkg_download_distfile VAR)
         endif()
 
         # Tries to download the file.
-        foreach(url IN LISTS vcpkg_download_distfile_URLS)
-            message(STATUS "Downloading ${url}...")
-            file(DOWNLOAD ${url} "${download_file_path_part}" STATUS download_status)
-            list(GET download_status 0 status_code)
-            if (NOT "${status_code}" STREQUAL "0")
-                message(STATUS "Downloading ${url}... Failed. Status: ${download_status}")
+        list(GET vcpkg_download_distfile_URLS 0 SAMPLE_URL)
+        if(_VCPKG_DOWNLOAD_TOOL STREQUAL "ARIA2" AND NOT SAMPLE_URL MATCHES "aria2")
+            vcpkg_find_acquire_program("ARIA2")
+            message(STATUS "Downloading ${vcpkg_download_distfile_FILENAME}...")
+            execute_process(
+                COMMAND ${ARIA2} ${vcpkg_download_distfile_URLS}
+                -o temp/${vcpkg_download_distfile_FILENAME}
+                -l download-${vcpkg_download_distfile_FILENAME}-detailed.log
+                OUTPUT_FILE download-${vcpkg_download_distfile_FILENAME}-out.log
+                ERROR_FILE download-${vcpkg_download_distfile_FILENAME}-err.log
+                RESULT_VARIABLE error_code
+                WORKING_DIRECTORY ${DOWNLOADS}
+            )
+            if (NOT "${error_code}" STREQUAL "0")
+                message(STATUS
+                    "Downloading ${vcpkg_download_distfile_FILENAME}... Failed.\n"
+                    "    Exit Code: ${error_code}\n"
+                    "    See logs for more information:\n"
+                    "        ${DOWNLOADS}/download-${vcpkg_download_distfile_FILENAME}-out.log\n"
+                    "        ${DOWNLOADS}/download-${vcpkg_download_distfile_FILENAME}-err.log\n"
+                    "        ${DOWNLOADS}/download-${vcpkg_download_distfile_FILENAME}-detailed.log\n"
+                )
                 set(download_success 0)
             else()
-                message(STATUS "Downloading ${url}... OK")
+                file(REMOVE
+                    ${DOWNLOADS}/download-${vcpkg_download_distfile_FILENAME}-out.log
+                    ${DOWNLOADS}/download-${vcpkg_download_distfile_FILENAME}-err.log
+                    ${DOWNLOADS}/download-${vcpkg_download_distfile_FILENAME}-detailed.log
+                )
                 set(download_success 1)
-                break()
             endif()
-        endforeach(url)
+        else()
+            foreach(url IN LISTS vcpkg_download_distfile_URLS)
+                message(STATUS "Downloading ${url}...")
+                file(DOWNLOAD ${url} "${download_file_path_part}" STATUS download_status)
+                list(GET download_status 0 status_code)
+                if (NOT "${status_code}" STREQUAL "0")
+                    message(STATUS "Downloading ${url}... Failed. Status: ${download_status}")
+                    set(download_success 0)
+                else()
+                    set(download_success 1)
+                    break()
+                endif()
+            endforeach(url)
+        endif()
 
         if (NOT download_success)
             message(FATAL_ERROR

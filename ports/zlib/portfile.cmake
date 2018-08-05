@@ -32,6 +32,8 @@ vcpkg_install_cmake()
 if(VCPKG_LIBRARY_LINKAGE STREQUAL static)
     if(EXISTS ${CURRENT_PACKAGES_DIR}/lib/zlibstatic.lib)
         file(RENAME ${CURRENT_PACKAGES_DIR}/lib/zlibstatic.lib ${CURRENT_PACKAGES_DIR}/lib/zlib.lib)
+    endif()
+    if(EXISTS ${CURRENT_PACKAGES_DIR}/debug/lib/zlibstaticd.lib)
         file(RENAME ${CURRENT_PACKAGES_DIR}/debug/lib/zlibstaticd.lib ${CURRENT_PACKAGES_DIR}/debug/lib/zlibd.lib)
     endif()
 endif()
@@ -41,3 +43,5 @@ file(INSTALL ${CMAKE_CURRENT_LIST_DIR}/LICENSE DESTINATION ${CURRENT_PACKAGES_DI
 vcpkg_copy_pdbs()
 
 file(COPY ${CMAKE_CURRENT_LIST_DIR}/usage DESTINATION ${CURRENT_PACKAGES_DIR}/share/${PORT})
+
+vcpkg_test_cmake(PACKAGE_NAME ZLIB)

@@ -1,10 +1,12 @@
 include(vcpkg_common_functions)
+
 vcpkg_from_github(
     OUT_SOURCE_PATH SOURCE_PATH
     REPO libuv/libuv
-    REF v1.19.2
-    SHA512 4fa879e34c51ae428ebf72ce80873b8d12994ae1560f9d3577a693653bfd5bd4b4fda7ff457b98b5e60fc82546658300401d6545d677f31d2cd66be3d82e02da
-    HEAD_REF v1.x)
+    REF v1.21.0
+    SHA512 ab6b52f8bee1900953d9136e4d281f81ba9f14287760f7bfc8633289699cb9eeaab15d9146ed05b164631fcb3c2b5abcee8c10499d080a82a411bb1f02564c48
+    HEAD_REF v1.x
+)
 
 file(COPY ${CMAKE_CURRENT_LIST_DIR}/CMakeLists.txt DESTINATION ${SOURCE_PATH})
 
@@ -12,7 +14,8 @@ vcpkg_configure_cmake(
     SOURCE_PATH ${SOURCE_PATH}
     PREFER_NINJA
     OPTIONS_DEBUG
-        -DUV_SKIP_HEADERS=ON)
+        -DUV_SKIP_HEADERS=ON
+)
 
 vcpkg_install_cmake()
 vcpkg_copy_pdbs()

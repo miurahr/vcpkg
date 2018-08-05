@@ -115,12 +115,16 @@ function(vcpkg_configure_cmake)
         vcpkg_find_acquire_program(NINJA)
         get_filename_component(NINJA_PATH ${NINJA} DIRECTORY)
         set(ENV{PATH} "$ENV{PATH};${NINJA_PATH}")
+        list(APPEND _csc_OPTIONS "-DCMAKE_MAKE_PROGRAM=${NINJA}")
     endif()
 
     file(REMOVE_RECURSE ${CURRENT_BUILDTREES_DIR}/${TARGET_TRIPLET}-rel ${CURRENT_BUILDTREES_DIR}/${TARGET_TRIPLET}-dbg)
 
     if(DEFINED VCPKG_CMAKE_SYSTEM_NAME)
         list(APPEND _csc_OPTIONS "-DCMAKE_SYSTEM_NAME=${VCPKG_CMAKE_SYSTEM_NAME}")
+        if(VCPKG_CMAKE_SYSTEM_NAME STREQUAL "WindowsStore" AND NOT DEFINED VCPKG_CMAKE_SYSTEM_VERSION)
+            set(VCPKG_CMAKE_SYSTEM_VERSION 10.0)
+        endif()
     endif()
     if(DEFINED VCPKG_CMAKE_SYSTEM_VERSION)
         list(APPEND _csc_OPTIONS "-DCMAKE_SYSTEM_VERSION=${VCPKG_CMAKE_SYSTEM_VERSION}")
@@ -164,6 +168,7 @@ function(vcpkg_configure_cmake)
 
     list(APPEND _csc_OPTIONS
         "-DVCPKG_TARGET_TRIPLET=${TARGET_TRIPLET}"
+        "-DVCPKG_PLATFORM_TOOLSET=${VCPKG_PLATFORM_TOOLSET}"
         "-DCMAKE_EXPORT_NO_PACKAGE_REGISTRY=ON"
         "-DCMAKE_FIND_PACKAGE_NO_PACKAGE_REGISTRY=ON"
         "-DCMAKE_FIND_PACKAGE_NO_SYSTEM_PACKAGE_REGISTRY=ON"
@@ -180,6 +185,8 @@ function(vcpkg_configure_cmake)
         "-DVCPKG_C_FLAGS_DEBUG=${VCPKG_C_FLAGS_DEBUG}"
         "-DVCPKG_CRT_LINKAGE=${VCPKG_CRT_LINKAGE}"
         "-DVCPKG_LINKER_FLAGS=${VCPKG_LINKER_FLAGS}"
+        "-DCMAKE_INSTALL_LIBDIR:STRING=lib"
+        "-DCMAKE_INSTALL_BINDIR:STRING=bin"
     )
 
     if(DEFINED ARCH)
@@ -235,7 +242,6 @@ function(vcpkg_configure_cmake)
             WORKING_DIRECTORY ${CURRENT_BUILDTREES_DIR}/${TARGET_TRIPLET}-rel/vcpkg-parallel-configure
             LOGNAME config-${TARGET_TRIPLET}
         )
-        message(STATUS "Configuring ${TARGET_TRIPLET} done")
     else()
         if(NOT DEFINED VCPKG_BUILD_TYPE OR VCPKG_BUILD_TYPE STREQUAL "debug")
             message(STATUS "Configuring ${TARGET_TRIPLET}-dbg")
@@ -245,7 +251,6 @@ function(vcpkg_configure_cmake)
                 WORKING_DIRECTORY ${CURRENT_BUILDTREES_DIR}/${TARGET_TRIPLET}-dbg
                 LOGNAME config-${TARGET_TRIPLET}-dbg
             )
-            message(STATUS "Configuring ${TARGET_TRIPLET}-dbg done")
         endif()
 
         if(NOT DEFINED VCPKG_BUILD_TYPE OR VCPKG_BUILD_TYPE STREQUAL "release")
@@ -256,7 +261,6 @@ function(vcpkg_configure_cmake)
                 WORKING_DIRECTORY ${CURRENT_BUILDTREES_DIR}/${TARGET_TRIPLET}-rel
                 LOGNAME config-${TARGET_TRIPLET}-rel
             )
-            message(STATUS "Configuring ${TARGET_TRIPLET}-rel done")
         endif()
     endif()
 

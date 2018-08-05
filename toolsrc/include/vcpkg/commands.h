@@ -7,6 +7,8 @@
 #include <vcpkg/vcpkgpaths.h>
 
 #include <array>
+#include <map>
+#include <vector>
 
 namespace vcpkg::Commands
 {
@@ -120,7 +122,11 @@ namespace vcpkg::Commands
     namespace Hash
     {
         void perform_and_exit(const VcpkgCmdArguments& args, const VcpkgPaths& paths);
-        std::string get_file_hash(const VcpkgPaths& paths, fs::path const& path, std::string const& hash_type);
+    }
+
+    namespace Fetch
+    {
+        void perform_and_exit(const VcpkgCmdArguments& args, const VcpkgPaths& paths);
     }
 
     template<class T>
